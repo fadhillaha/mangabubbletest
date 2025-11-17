@@ -1,0 +1,13 @@
+.venv/
+dataset/
+*.egg-info
+visualized/
+.pytest_cache/
+build/
+curated_dataset/
+*.png
+__pycache__/
+output/
+output2/
+output4/
+.env
