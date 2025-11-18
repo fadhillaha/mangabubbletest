@@ -2,7 +2,8 @@ import streamlit as st
 import os
 import json
 import sys
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # --- 0. Setup & Imports ---
@@ -10,12 +11,12 @@ try:
     # Import your Adapter Client
     from lib.llm.geminiadapter import GeminiClient
     
-    # Import the original library functions (no modification needed!)
+    # Import the original library functions
     from lib.script.divide import divide_script, ele2panels, refine_elements
     from lib.image.image import generate_image_prompts, enhance_prompts, generate_image_with_sd
     from lib.image.controlnet import run_controlnet_openpose, controlnet2bboxes, ControlNetResult
     from lib.name.name import generate_animepose_image, generate_name
-    from lib.layout.layout import generate_layout, similar_layouts
+    from lib.layout.layout import generate_layout, similar_layouts, Speaker, NonSpeaker
 except ImportError as e:
     st.error(f"Failed to import project modules: {e}")
     st.error("Make sure you run this script from the project root and have run 'pip install -e .'")
@@ -28,10 +29,7 @@ if not api_key:
     st.error("GOOGLE_API_KEY is not set in .env file")
     st.stop()
 
-# --- Initialize Gemini Client (Adapter) ---
-# This mimics the OpenAI client structure that your lib functions expect
 try:
-    # Using the model version you specified
     client = GeminiClient(api_key=api_key, model="gemini-2.0-flash")
 except Exception as e:
     st.error(f"Failed to initialize GeminiClient: {e}")
@@ -47,142 +45,317 @@ st.title("🚀 Full Pipeline Debugger (Gemini Adapter)")
 
 # --- 1. Script Input ---
 st.sidebar.header("Input Script")
-default_script = """cene: A high school classroom in Japan during late afternoon. The room is bathed in the warm, golden glow of the sunset coming through the windows. Shadows are long.
-Kenji (A teenage boy with messy brown hair and a loose tie, looking anxious and leaning forward): "Hey Aiko, did you actually finish the math homework? It was impossible!"
-Aiko (A teenage girl with long black hair, wearing a neat school uniform, smiling confidently while holding up a notebook): "Of course! It was easy once you figured out the formula."
-Kenji (Sighing deeply, slumping over his desk in defeat, scratching his head): "I didn't understand it at all... I'm doomed."
+default_script = """放課後の教室。夕焼けが窓から差し込み、室内をオレンジ色に染めている。 誰もいない教室の隅で、ケンジが机に突っ伏して頭を抱えている。
+
+
+
+ケンジ「もうダメだ…終わった…。」
+
+
+
+ケンジの席の隣に立ち、呆れたように見下ろしているアイコ。
+
+
+
+アイコ「大袈裟ね。たかが数学の宿題でしょ？」
+
+
+
+（アイコの容姿） 黒髪のロングヘア。整った制服姿。知的で少し勝ち気な目元。腕を組んでいる。
+
+
+
+ケンジ、涙目で顔を上げ、アイコにすがるように手を伸ばす。
+
+
+
+（ケンジの容姿） 茶髪でボサボサ頭。ネクタイが緩んでいる。情けない表情。
+
+
+
+ケンジ「アイコ様、お願いします！ノート見せてください！」
+
+
+
+アイコ「お断りよ。自分で解かないと意味ないでしょ。」
+
+
+
+冷たく突き放され、机に突っ伏して泣き真似をするケンジ。
+
+
+
+ケンジM「（ケチ！アイコの鬼！悪魔！…でも頼れるのはこいつしかいないんだよなぁ。）」
+
+
+
+ガララッ！と勢いよく教室のドアが開く。 部活帰りのヒロが、汗を拭きながら入ってくる。
+
+
+
+（ヒロの容姿） 短髪でスポーティー。シャツの袖をまくっている。首にタオル。元気な笑顔。
+
+
+
+ヒロ「おっ、まだ残ってたのか！奇遇だな！」
+
+
+
+ヒロ、ドカドカと歩み寄り、ケンジとアイコの間に割り込むようにして机に腰掛ける。 （画面構成：左にケンジ、中央にヒロ、右にアイコ）
+
+
+
+アイコ「ヒロ、机に座らないでよ。行儀悪い。」
+
+
+
+ヒロ「固いこと言うなよ学級委員長。それより見てくれよコレ！」
+
+
+
+ヒロ、ポケットから少し潰れた「限定焼きそばパン」を得意げに取り出す。
+
+
+
+ヒロ「購買のラス１、ゲットしたぜ！凄いだろ！」
+
+
+
+パンを見た瞬間、アイコの表情が一変する。身を乗り出してパンを凝視する。
+
+
+
+アイコ「嘘…それ、幻のプレミアム焼きそばパン！？」
+
+
+
+ケンジ「（えっ、アイコってそんなキャラだっけ？）」
+
+
+
+ヒロ、ニカっと笑ってパンを高く掲げる。 釣られて手を伸ばすアイコ。
+
+
+
+ヒロ「へへーん、羨ましいだろ！一口もやらねーけどな！」
+
+
+
+アイコ「ちょっと！一口くらい味見させてよ！ケチ！」
+
+
+
+ヒロ「バーカ！早い者勝ちなんだよ！」
+
+
+
+子供のようにパンを巡って争い始めるヒロとアイコ。 二人の間に挟まれ、置いてきぼりにされたケンジ。
+
+
+
+ケンジ「あの…俺の宿題は…？」
+
+
+
+ヒロとアイコ、同時にケンジの方を向く。
+
+
+
+ヒロ＆アイコ「「うるさい！」」
+
+
+
+ケンジ、再び机に突っ伏してふて寝する。
+
+
+
+ケンジM「（…帰りたい。）」"
 """
 script_text = st.sidebar.text_area("Enter Script", default_script, height=300)
 
 if st.button("Run Full Pipeline", type="primary"):
     
-    # 1. Prepare Script File
     script_path = os.path.join(OUTPUT_DIR, "temp_script.txt")
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(script_text)
 
     st.header("1. Script Processing (LLM)")
     
-    # --- Step 1: Divide Script ---
+    # --- Step 1: Script Parsing ---
     with st.status("Parsing Script...", expanded=True) as status:
         st.write("running `divide_script`...")
-        # We pass 'client' (your GeminiAdapter) instead of 'model'
         elements = divide_script(client, script_path, base_dir)
-        
         st.write("running `refine_elements`...")
         elements = refine_elements(elements, base_dir)
         
-        st.json(elements, expanded=False)
-        
-        # Extract Speakers
         speakers = list(set([e["speaker"] for e in elements if "speaker" in e]) - {""})
         st.success(f"Detected Speakers: {speakers}")
 
-        # --- Step 2: Elements to Panels ---
         st.write("running `ele2panels`...")
         panels = ele2panels(client, elements, base_dir)
-        st.json(panels, expanded=False)
         
-        # --- Step 3: Generate Prompts ---
         st.write("running `generate_image_prompts`...")
         prompts = generate_image_prompts(client, panels, speakers, base_dir)
-        st.write(f"Generated Content Tags: `{prompts[0]}`") 
         
-        # --- Step 4: Enhance Prompts ---
         st.write("running `enhance_prompts`...")
         enhanced_prompts = enhance_prompts(client, prompts, base_dir)
         
-        final_prompt = enhanced_prompts[0]
-        if isinstance(final_prompt, dict):
-            final_prompt = final_prompt["prompt"]
-            
-        st.info(f"**Final Enhanced Prompt:** {final_prompt}")
         status.update(label="Script Processing Complete!", state="complete", expanded=False)
 
-    st.header("2. Image Generation & Analysis")
+    st.header("2. Image Generation & Layout (All Panels)")
     
-    # Process First Panel Only
-    panel_idx = 0
-    panel_data = panels[panel_idx]
+    progress_bar = st.progress(0)
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("A. Image Generation")
-        with st.spinner("Generating Images with Stable Diffusion..."):
-            img_name = f"panel{panel_idx}_00.png"
-            img_path = os.path.join(OUTPUT_DIR, img_name)
-            anime_path = os.path.join(OUTPUT_DIR, f"panel{panel_idx}_00_anime.png")
-            
-            # 1. Main Image
-            generate_image_with_sd(final_prompt, img_path)
-            st.image(img_path, caption="Main Image")
-            
-            # 2. Anime Sketch
-            generate_animepose_image(img_path, final_prompt, anime_path)
-            st.image(anime_path, caption="Sketch (for OpenPose)")
-
-    with col2:
-        st.subheader("B. ControlNet Analysis")
-        with st.spinner("Running OpenPose..."):
-            # 3. ControlNet
-            openpose_result = run_controlnet_openpose(img_path, anime_path)
-            
-            if openpose_result.image:
-                st.image(openpose_result.image, caption="OpenPose Skeleton")
-            
-            # 4. BBoxes
-            bboxes = controlnet2bboxes(openpose_result)
-            
-            # Visualizing BBoxes
-            base_img = Image.open(img_path)
-            draw = ImageDraw.Draw(base_img)
-            for i, box in enumerate(bboxes):
-                draw.rectangle(box, outline="red", width=5)
-                draw.text((box[0], box[1]), f"Char {i}", fill="red")
-            st.image(base_img, caption="Detected Bounding Boxes")
-            st.write(f"BBoxes Data: {bboxes}")
-
-    st.header("3. Layout & Bubble Placement")
-    
-    with st.spinner("Calculating Layout..."):
-        width, height = openpose_result.canvas_width, openpose_result.canvas_height
+    for panel_idx, panel_data in enumerate(panels):
+        progress_bar.progress((panel_idx + 1) / len(panels))
         
-        # 5. Generate Layout Object
-        layout = generate_layout(bboxes, panel_data, width, height)
-        
-        if layout is None:
-            st.error("Failed to generate layout. Likely mismatch between detected characters and dialogue.")
-        else:
-            # 6. Similar Layouts
-            scored_layouts = similar_layouts(layout)
+        with st.expander(f"🖼️ Panel {panel_idx + 1} Processing", expanded=(panel_idx==0)):
             
-            if not scored_layouts:
-                st.error("No matching layouts found in database.")
+            # 1. Get Prompt
+            try:
+                prompt_data = enhanced_prompts[panel_idx]
+                final_prompt = prompt_data["prompt"] if isinstance(prompt_data, dict) else prompt_data
+                st.info(f"**Prompt:** {final_prompt}")
+            except IndexError:
+                st.error(f"Error: No prompt found for Panel {panel_idx}")
+                continue
+
+            col1, col2 = st.columns(2)
+            
+            # --- Image Gen ---
+            with col1:
+                st.subheader("A. Generation")
+                img_name = f"panel{panel_idx}_00.png"
+                img_path = os.path.join(OUTPUT_DIR, img_name)
+                anime_path = os.path.join(OUTPUT_DIR, f"panel{panel_idx}_00_anime.png")
+                
+                generate_image_with_sd(final_prompt, img_path)
+                st.image(img_path, caption="Main Image")
+                
+                generate_animepose_image(img_path, final_prompt, anime_path)
+                st.image(anime_path, caption="Sketch (for OpenPose)")
+
+            # --- ControlNet ---
+            with col2:
+                st.subheader("B. Analysis")
+                openpose_result = run_controlnet_openpose(img_path, anime_path)
+                
+                if openpose_result.image:
+                    st.image(openpose_result.image, caption="OpenPose Skeleton")
+                
+                # --- Detailed OpenPose Data ---
+                with st.expander("💀 OpenPose Keypoint Data (Coordinates)"):
+                    for i, person in enumerate(openpose_result.people):
+                        st.markdown(f"**Person {i}**")
+                        
+                        # Handle typos in lib/image/controlnet.py gracefully
+                        left_hand = getattr(person, 'hand_left_keypoints_2d', None) or getattr(person, 'hand_left_keyopints_2d', None)
+                        right_hand = getattr(person, 'hand_right_keypoints_2d', None) or getattr(person, 'hand_right_keyoints_2d', None)
+                        
+                        keypoint_data = {
+                            "Body (Pose)": str(person.pose_keypoints_2d[:3]) + "..." if person.pose_keypoints_2d else "None",
+                            "Face": str(person.face_keypoints_2d[:3]) + "..." if person.face_keypoints_2d else "None",
+                            "Left Hand": str(left_hand[:3]) + "..." if left_hand else "None",
+                            "Right Hand": str(right_hand[:3]) + "..." if right_hand else "None"
+                        }
+                        st.json(keypoint_data)
+                # -------------------------------
+
+                bboxes = controlnet2bboxes(openpose_result)
+                
+                base_img = Image.open(img_path)
+                draw = ImageDraw.Draw(base_img)
+                try:
+                    font = ImageFont.truetype("arial.ttf", 40) 
+                except:
+                    font = None 
+
+                for i, box in enumerate(bboxes):
+                    draw.rectangle(box, outline="red", width=5)
+                    draw.text((box[0], box[1]), f"Char {i}", fill="red", font=font)
+                st.image(base_img, caption="Detected Bounding Boxes")
+
+            # --- Layout ---
+            st.subheader("C. Layout & Bubbles")
+            width, height = openpose_result.canvas_width, openpose_result.canvas_height
+            layout = generate_layout(bboxes, panel_data, width, height)
+            
+            if layout is None:
+                st.error("Failed to generate layout. (Character/Dialogue mismatch)")
             else:
-                best_match = scored_layouts[0]
-                ref_layout = best_match[0]
-                score = best_match[1]
-                pairs_iterator = best_match[2]
+                scored_layouts = similar_layouts(layout)
                 
-                # Convert zip object to list for display and reuse
-                pairs_list = list(pairs_iterator)
-                
-                st.success(f"Best Match Found! Score: {score:.4f}")
-                st.write(f"Template Image: `{ref_layout.image_path}`")
-                st.write("### 🔗 Pairs Mapping")
-                st.code(str(pairs_list), language="python")
-                
-                # 7. Generate Final Name
-                reconstructed_scored_layout = (ref_layout, score, pairs_list)
-                save_name_path = os.path.join(OUTPUT_DIR, f"panel{panel_idx}_final.png")
-                
-                generate_name(
-                    openpose_result, 
-                    layout, 
-                    reconstructed_scored_layout, 
-                    panel_data, 
-                    save_name_path
-                )
-                
-                st.image(save_name_path, caption="✨ Final Result with Bubbles", use_column_width=True)
+                if not scored_layouts:
+                    st.error("No matching layouts found in database.")
+                else:
+                    best_match = scored_layouts[0]
+                    ref_layout = best_match[0]
+                    score = best_match[1]
+                    pairs_iterator = best_match[2]
+                    pairs_list = list(pairs_iterator)
+                    
+                    st.success(f"Best Match Found! Score: {score:.4f}")
+                    
+                    reconstructed_scored_layout = (ref_layout, score, pairs_list)
+                    save_name_path = os.path.join(OUTPUT_DIR, f"panel{panel_idx}_final.png")
+                    
+                    generate_name(
+                        openpose_result, 
+                        layout, 
+                        reconstructed_scored_layout, 
+                        panel_data, 
+                        save_name_path
+                    )
+                    
+                    st.image(save_name_path, caption="✨ Final Result", use_column_width=True)
+
+                    # --- Detailed Bubble & Mapping Data ---
+                    st.divider()
+                    with st.expander("🔍 Deep Dive: Coordinate Mapping & Bubble Locations"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.write("### 1. Generated Character BBoxes")
+                            st.write("Format: `[min_x, min_y, max_x, max_y]`")
+                            for idx, bbox in enumerate(bboxes):
+                                st.code(f"Char {idx}: {bbox}")
+
+                        with c2:
+                            st.write("### 2. Template Bubble BBoxes")
+                            st.write("Format: `[min_x, min_y, max_x, max_y]`")
+                            
+                            # Extract bubble coordinates from the template layout
+                            for idx, element in enumerate(ref_layout.elements):
+                                if isinstance(element, Speaker):
+                                    speaker_label = f"Template Speaker {idx}"
+                                    if element.text_info:
+                                        # Show all bubbles for this speaker
+                                        bubbles = [t["bbox"] for t in element.text_info]
+                                        st.code(f"{speaker_label}: {bubbles}")
+                                    else:
+                                        st.code(f"{speaker_label}: No text info found")
+                                elif isinstance(element, NonSpeaker):
+                                    st.code(f"Template Element {idx}: Non-Speaker")
+
+                        st.write("### 3. Final Assignment Map (The Intelligent Fix)")
+                        st.caption("This shows exactly which of YOUR characters maps to which TEMPLATE bubble.")
+                        
+                        mapping_debug = []
+                        for base_idx, ref_idx in pairs_list:
+                            base_bbox = bboxes[base_idx]
+                            ref_speaker = ref_layout.elements[ref_idx]
+                            
+                            # Re-simulate the logic to find WHICH bubble is used
+                            target_bubble_bbox = "None"
+                            if isinstance(ref_speaker, Speaker) and ref_speaker.text_info:
+                                 bbox = [-1, -1, -1, -1]
+                                 for text_obj in ref_speaker.text_info:
+                                     if text_obj["bbox"][2] > bbox[2]:
+                                         bbox = text_obj["bbox"]
+                                 target_bubble_bbox = bbox
+                            
+                            mapping_debug.append({
+                                "Your Character (Index)": base_idx,
+                                "Mapped to Template (Index)": ref_idx,
+                                "Target Bubble BBox": target_bubble_bbox
+                            })
+                        st.table(mapping_debug)

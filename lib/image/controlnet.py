@@ -59,14 +59,24 @@ def controlnet2bboxes(controlnet_results: ControlNetResult):
     width, height = controlnet_results.canvas_width, controlnet_results.canvas_height
     bboxes = []
     for person in controlnet_results.people:
-        bbox = [max(width, height)] * 4
+        #bbox = [max(width, height)] * 4
+        bbox = [float('inf'), float('inf'), 0, 0]
+        valid_points = 0
         for keypoint in person.pose_keypoints_2d:
             x, y = keypoint
+            if x == 0 and y == 0:
+                continue
+            valid_points += 1
             bbox[0] = min(bbox[0], x * width)
             bbox[1] = min(bbox[1], y * height)
             bbox[2] = max(bbox[2], x * width)
             bbox[3] = max(bbox[3], y * height)
-        bboxes.append(bbox)
+        if valid_points > 0:
+            bbox[0] = max(0, bbox[0])
+            bbox[1] = max(0, bbox[1])
+            bbox[2] = min(width, bbox[2])
+            bbox[3] = min(height, bbox[3])
+            bboxes.append(bbox)
     bboxes = sorted(bboxes, key=lambda x: (x[0] + x[2]) / 2, reverse=True)
     return bboxes
 

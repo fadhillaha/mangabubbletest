@@ -1,26 +1,226 @@
 [
     [
         {
-            "content": "Scene: A classroom in the afternoon.",
+            "content": "放課後の教室。夕焼けが窓から差し込み、室内をオレンジ色に染めている。 誰もいない教室の隅で、ケンジが机に突っ伏して頭を抱えている。",
             "type": "description",
             "speaker": ""
         },
         {
-            "content": "Boy: \"Hey, did you finish the homework?\"",
+            "content": "もうダメだ…終わった…。",
             "type": "dialogue",
-            "speaker": "Boy"
-        },
-        {
-            "content": "Girl (smiling): \"Of course! It was easy.\"",
-            "type": "dialogue",
-            "speaker": "Girl"
+            "speaker": "ケンジ"
         }
     ],
     [
         {
-            "content": "Boy (sighs): \"I didn't understand it at all...\"",
+            "content": "ケンジの席の隣に立ち、呆れたように見下ろしているアイコ。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "大袈裟ね。たかが数学の宿題でしょ？",
             "type": "dialogue",
-            "speaker": "Boy"
+            "speaker": "アイコ"
+        }
+    ],
+    [
+        {
+            "content": "（アイコの容姿） 黒髪のロングヘア。整った制服姿。知的で少し勝ち気な目元。腕を組んでいる。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "ケンジ、涙目で顔を上げ、アイコにすがるように手を伸ばす。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "（ケンジの容姿） 茶髪でボサボサ頭。ネクタイが緩んでいる。情けない表情。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "アイコ様、お願いします！ノート見せてください！",
+            "type": "dialogue",
+            "speaker": "ケンジ"
+        }
+    ],
+    [
+        {
+            "content": "お断りよ。自分で解かないと意味ないでしょ。",
+            "type": "dialogue",
+            "speaker": "アイコ"
+        }
+    ],
+    [
+        {
+            "content": "冷たく突き放され、机に突っ伏して泣き真似をするケンジ。",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "（ケチ！アイコの鬼！悪魔！…でも頼れるのはこいつしかいないんだよなぁ。）",
+            "type": "monologue",
+            "speaker": "ケンジ"
+        }
+    ],
+    [
+        {
+            "content": "ガララッ！と勢いよく教室のドアが開く。 部活帰りのヒロが、汗を拭きながら入ってくる。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "（ヒロの容姿） 短髪でスポーティー。シャツの袖をまくっている。首にタオル。元気な笑顔。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "おっ、まだ残ってたのか！奇遇だな！",
+            "type": "dialogue",
+            "speaker": "ヒロ"
+        }
+    ],
+    [
+        {
+            "content": "ヒロ、ドカドカと歩み寄り、ケンジとアイコの間を割って入るようにして机に腰掛ける。 （画面構成：左にケンジ、中央にヒロ、右にアイコ）",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "ヒロ、机に座らないでよ。行儀悪い。",
+            "type": "dialogue",
+            "speaker": "アイコ"
+        }
+    ],
+    [
+        {
+            "content": "固いこと言うなよ学級委員長。それより見てくれよコレ！",
+            "type": "dialogue",
+            "speaker": "ヒロ"
+        }
+    ],
+    [
+        {
+            "content": "ヒロ、ポケットから少し潰れた「限定焼きそばパン」を得意げに取り出す。",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "購買のラス1、ゲットしたぜ！凄いだろ！",
+            "type": "dialogue",
+            "speaker": "ヒロ"
+        }
+    ],
+    [
+        {
+            "content": "パンを見た瞬間、アイコの表情が一変する。身を乗り出してパンを凝視する。",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "嘘…それ、幻のプレミアム焼きそばパン！？",
+            "type": "dialogue",
+            "speaker": "アイコ"
+        }
+    ],
+    [
+        {
+            "content": "（えっ、アイコってそんなキャラだっけ？）",
+            "type": "dialogue",
+            "speaker": "ケンジ"
+        }
+    ],
+    [
+        {
+            "content": "ヒロ、ニカッと笑ってパンを高く掲げる。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "へへーん、羨ましいだろ！一口もやらねーけどな！",
+            "type": "dialogue",
+            "speaker": "ヒロ"
+        }
+    ],
+    [
+        {
+            "content": "釣られて手を伸ばすアイコ。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "ちょっと！一口くらい味見させてよ！ケチ！",
+            "type": "dialogue",
+            "speaker": "アイコ"
+        }
+    ],
+    [
+        {
+            "content": "バーカ！早い者勝ちなんだよ！",
+            "type": "dialogue",
+            "speaker": "ヒロ"
+        }
+    ],
+    [
+        {
+            "content": "子供のようにパンを巡って争い始めるヒロとアイコ。",
+            "type": "description",
+            "speaker": ""
+        }
+    ],
+    [
+        {
+            "content": "二人の間に挟まれ、置き去りきぼりにされたケンジ。",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "あの…俺の宿題は…？",
+            "type": "dialogue",
+            "speaker": "ケンジ"
+        }
+    ],
+    [
+        {
+            "content": "ヒロとアイコ、同時にケンジの方を向く。",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "「うるさい！」",
+            "type": "dialogue",
+            "speaker": "ヒロ＆アイコ"
+        }
+    ],
+    [
+        {
+            "content": "ケンジ、再び机に突っ伏してふて寝する。",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "（…帰りたい。）",
+            "type": "monologue",
+            "speaker": "ケンジ"
         }
     ]
 ]
