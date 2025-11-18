@@ -108,18 +108,45 @@ def _generate_name(pil_image, base_layout, scored_layout, panel):
     # 1. QueryレイアウトのSpeakerの数 <= 参照レイアウトのSpeakerの数
     # 2. 前述の並び替えでSpeakerエレメントはNonSpeakerよりも必ず前側に来る
     # => NonSpeakerエレメントがセリフ位置の参照に使われることはない
-    panel_pointer = 0
-    for ref_layout_element in ref_layout.elements:
-        while panel_pointer < len(panel) and panel[panel_pointer]["type"] != "dialogue":
-            panel_pointer += 1
-        if panel_pointer >= len(panel):
-            break
+    pairs = scored_layout[2] 
+
+    # 2. Map your script dialogue to your Base Speakers (0, 1, 2...)
+    # (This is safe because generate_layout created them in this exact order)
+    dialogue_map = {}
+    speaker_idx = 0
+    for element in panel:
+        if element["type"] == "dialogue":
+            dialogue_map[speaker_idx] = element["content"]
+            speaker_idx += 1
+
+    # 3. Loop through the PAIRS to assign text
+    # base_idx = Your Speaker Index (0=Boy, 1=Girl)
+    # ref_idx  = Template Speaker Index (Correct matching spatial position)
+    for base_idx, ref_idx in pairs:
+        
+        # Get the dialogue for YOUR speaker
+        if base_idx not in dialogue_map: continue
+        text = dialogue_map[base_idx]
+
+        # Get the corresponding TEMPLATE speaker
+        template_speaker = ref_layout.elements[ref_idx]
+        
+        # Safety check: ensure the template element is actually a speaker with text info
+        if type(template_speaker) != Speaker or not template_speaker.text_info:
+            continue
+        
+        # Find that template speaker's bubble (using the simple rightmost logic for now)
         bbox = [-1, -1, -1, -1]
-        for text_obj in ref_layout_element.text_info:
+        for text_obj in template_speaker.text_info:
             if text_obj["bbox"][2] > bbox[2]:
                 bbox = text_obj["bbox"]
-        draw_vertical_text(pil_image, panel[panel_pointer]["content"], bbox, "dialogue")
-        panel_pointer += 1
+        
+        # Draw the text in the CORRECT bubble
+        # Note: If you implemented the "tail" improvement, pass character_bbox here!
+        # character_bbox = base_layout.elements[base_idx].bbox
+        # draw_vertical_text(pil_image, text, bbox, "dialogue", character_bbox)
+        
+        draw_vertical_text(pil_image, text, bbox, "dialogue")
 
     # monologueはpanel上は複数に分かれていても１つとして扱う
     total_monologue = ""

@@ -1,0 +1,26 @@
+[
+    [
+        {
+            "content": "Scene: A classroom in the afternoon.",
+            "type": "description",
+            "speaker": ""
+        },
+        {
+            "content": "Boy: \"Hey, did you finish the homework?\"",
+            "type": "dialogue",
+            "speaker": "Boy"
+        },
+        {
+            "content": "Girl (smiling): \"Of course! It was easy.\"",
+            "type": "dialogue",
+            "speaker": "Girl"
+        }
+    ],
+    [
+        {
+            "content": "Boy (sighs): \"I didn't understand it at all...\"",
+            "type": "dialogue",
+            "speaker": "Boy"
+        }
+    ]
+]

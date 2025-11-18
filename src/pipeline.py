@@ -86,19 +86,32 @@ def main():
         panel_dir = os.path.join(image_base_dir, f"panel{i:03d}")
         os.makedirs(panel_dir, exist_ok=True)
         for j in range(num_images):
-            image_path = os.path.join(panel_dir, f"{j:02d}.png")
-            # generate_image(client, prompt, image_path)
-            generate_image_with_sd(prompt, image_path)
-            if not os.path.exists(image_path):
-                continue
-            anime_image_path = os.path.join(panel_dir, f"{j:02d}_anime.png")
-            generate_animepose_image(image_path, prompt, anime_image_path)
-            openpose_result = run_controlnet_openpose(image_path, anime_image_path)
-            width, height = openpose_result.canvas_width, openpose_result.canvas_height
-            bboxes = controlnet2bboxes(openpose_result)
-            layout = generate_layout(bboxes, panels[i], width, height)
+
+            max_retries = 3  
+            layout = None
+            openpose_result = None
+
+            for attempt in range(max_retries):
+                print(f"  > Generating image {j} (Attempt {attempt+1}/{max_retries})...")
+                image_path = os.path.join(panel_dir, f"{j:02d}.png")
+                # generate_image(client, prompt, image_path)
+                generate_image_with_sd(prompt, image_path)
+                if not os.path.exists(image_path):
+                    continue
+                anime_image_path = os.path.join(panel_dir, f"{j:02d}_anime.png")
+                generate_animepose_image(image_path, prompt, anime_image_path)
+                openpose_result = run_controlnet_openpose(image_path, anime_image_path)
+                width, height = openpose_result.canvas_width, openpose_result.canvas_height
+                bboxes = controlnet2bboxes(openpose_result)
+                layout = generate_layout(bboxes, panels[i], width, height)
+                if layout is not None:
+                    break # found a valid layout
+                else:
+                    print("    ! Invalid layout detected, retrying...")
             if layout is None:
+                print(f"    ! Failed to generate a valid layout after {max_retries} attempts. Skipping this image.")
                 continue
+            
             scored_layouts = similar_layouts(layout)
             for idx_ref_layout, scored_layout in enumerate(
                 scored_layouts[:NUM_REFERENCES]
