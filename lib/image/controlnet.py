@@ -122,13 +122,9 @@ def run_controlnet_openpose(image_path, controlnetres_image_path=None,output_pat
     return ControlNetResult(response, controlnetres_image_path)
 
 
-def generate_with_controlnet_openpose(pose_image_path, prompt, save_path, model="anything-v4.5-pruned"):
+def generate_with_controlnet_openpose(pose_image_path, prompt, save_path, model="tAnimeV4Pruned_v40"):
     negative_prompt = (
-    "nsfw, "
-    "low quality, worst quality, jpeg artifacts, blurry, grainy, noisy, scan, "
-    "text, watermark, signature, username, error, (cropped, out of frame:1.2), "
-    "(deformed, disfigured, mutated, bad anatomy:1.3), (mutilated, malformed limbs, gross proportions:1.2), "
-    "poorly drawn hands, poorly drawn feet, extra limbs, missing limbs, extra fingers, fewer fingers, fused fingers"
+    "nsfw, (photorealistic:1.5), (color:1.5), (shading:1.4), (smooth:1.4), 3d, render, sharp focus, nice, pretty, masterpiece, best quality"
     )
 
     with open(pose_image_path, "rb") as f:
@@ -139,10 +135,10 @@ def generate_with_controlnet_openpose(pose_image_path, prompt, save_path, model=
         "override_settings" : {
             "sd_model_checkpoint" : model,
         },
-        "sampler_name" : "DPM++ 2M",
-        "scheduler" : "Karras",
+        "sampler_name" : "Euler a",
+        "scheduler" : "Automatic",
         "steps": 20,
-        "cfg_scale" : 6,
+        "cfg_scale" : 4,
         "width": 512,
         "height": 512,
         "seed" : -1,
@@ -150,8 +146,8 @@ def generate_with_controlnet_openpose(pose_image_path, prompt, save_path, model=
             "controlnet": {
                 "args": [{
                     "image": img_data,
-                    "module": "openpose",
-                    "model": "control_v11p_sd15_openpose",
+                    "module": "scribble_pidinet",
+                    "model": "control_v11p_sd15_scribble",
                     "enabled": True,
                     "weight" : 1,
                     "guidance_end" : 0.8,

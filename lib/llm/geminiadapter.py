@@ -2,6 +2,15 @@
 import os, json, re
 from types import SimpleNamespace
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
+# 2. Define the permissive safety settings
+SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+}
 
 def _is_probably_json(s: str) -> bool:
     if not isinstance(s, str):
@@ -49,7 +58,7 @@ class _ChatCompletions:
         if expects_json:
             gen_cfg["response_mime_type"] = "application/json"
 
-        resp = gmodel.generate_content(prompt, generation_config=gen_cfg)
+        resp = gmodel.generate_content(prompt, generation_config=gen_cfg,safety_settings=SAFETY_SETTINGS)
 
         # Normalize to OpenAI shape
         text = (getattr(resp, "text", None) or "").strip()

@@ -41,7 +41,7 @@ def test_generate_image_prompts():
     from lib.image.image import generate_image_prompts
     load_dotenv()
     client = OpenAI()
-    ele2panels_pata = "./tests/input/ele2panels.json"
+    ele2panels_path = "./tests/input/ele2panels.json"
     with open(ele2panels_path, "r") as f:
         panels = json.load(f)
     generate_image_prompts(client, panels, "./tests/output/image_prompts")

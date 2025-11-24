@@ -118,7 +118,7 @@ def generate_image(client, prompt, image_path,num_retry=5):
     return
 
 def generate_image_with_sd(prompt, image_path):
-    model="anything-v4.5-pruned"
+    model="tAnimeV4Pruned_v40"
     payload = {
         "prompt": prompt,
         "override_settings" : {

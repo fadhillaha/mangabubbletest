@@ -24,13 +24,6 @@ from lib.image.controlnet import (
 )
 from lib.name.name import generate_name, generate_animepose_image
 
-from lib.scoring.scorer import (
-    load_clip_model,
-    get_verification_prompt,
-    calculate_clip_score,
-    calculate_geometric_penalty
-)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pipeline script for processing")

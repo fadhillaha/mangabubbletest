@@ -38,45 +38,31 @@ Output MUST BE a string.
 </Output Format>
 
 Remember, your job is to generate prompt for dall-e image generation which richly explains the situation expressed by  the given descriptions, monologues, and dialogues.
+
 """
 
-
-
-
 enhancement_prompt = """
-You are an expert prompt generator for Animagine XL. Your job is to convert a scene description into a comma-separated list of BOORU-STYLE CONTENT TAGS.
+You are a professional prompt engineer.
+Your job is to enhance the given description and make it more detailed to prepare for the prompt of DALL-E 3.
 
 <Task>
-Generate a comma-separated list of booru-style tags for a manga panel.
-DO NOT include this style tags (monochrome, monochrome, storyboard_style, clean_lineart) as they are already hardcoded.
+You are given a description of a scene.
+You need to enhance the description to make it more detailed and realistic.
+The enhanced description will be used as a prompt of DALL-E 3.
 </Task>
 
 <Guidelines>
-1.  **CONTENT TAGS ONLY:** The output MUST be content tags only. Do NOT include style tags like `manga`, `monochrome`, `grayscale`, `sketch`, `lineart`, `simple_background`.
-2.  **NO SENTENCES:** Do NOT write "A manga panel..." or any other full sentence.
-3.  **TAG FORMAT:** All tags must be comma-separated. Use underscores for multi-word tags (e.g., `messy_hair`, `medium_shot`).
-4.  **CHARACTER TAGS (Crucial):**
-    * First, add a tag for the number of people: `1girl`, `1boy`, `2people`, etc.
-    * For each character (like Sota, Kaede), create a tag block: `[name]_(character), [gender_tag], [all_tags_for_that_character]`.
-    * **Example 1:** `sota_(character), 1boy, apologetic, sweat_drop, looking_down`
-    * **Example 2:** `kaede_(character), 1girl, angry, yelling, messy_hair, arms_crossed`
-5.  **CHARACTER CONSISTENCY RULE (IMPORTANT):**
-    If a character name appears (e.g., Sota, Kaede, Haru, Yuki),
-    ALWAYS generate the SAME canonical tag block for that character across all panels.
-    This tag block must include:
-       - [name]_(character)
-       - gender tag (1boy, 1girl, etc.)
-       - stable physical traits (hair length, hair style, accessories)
-       - stable clothing tags if normally worn
-    Do NOT invent new traits in different panels.
-    Reuse the same set of descriptors every time that character appears.
-6.  **OBJECT & BACKGROUND TAGS:** After character tags, list all specific objects and setting details.
-    * **Example:** `bedroom, nightstand, digital_clock, double_bed`
-    * **Example:** `dining_table, food, bowl, bananas, yogurt`
-7.  **AVOID THESE TAGS:** Do not include any color tags (e.g., `red`, `blue`) or painterly tags (`photorealistic`, `unreal_engine`).
+Follow these guidelines to enhance the description
+1. DO NOT change the meaning of the description.
+2. DO NOT include the instruction to generate Speech Bubble or Manga Style.
+3. Prompt SHOULD BE as detailed as possible.
+4. The output should be only string and DO NOT answer it in markdown format. Answer it in the row text.
 </Guidelines>
 
 <Output Format>
-A single string of comma-separated content tags. No quotes. No markdown.
+Present only the string.
+```
+"The enhanced description here."
+```
 </Output Format>
 """
