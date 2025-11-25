@@ -1,6 +1,6 @@
 import streamlit as st
 import subprocess
-import os
+import os, json
 import tempfile
 import glob
 from datetime import datetime
@@ -123,13 +123,79 @@ if st.button("Generate Panels", type="primary"):
                     with tabs[i]:
                         st.subheader(f"Variations for {panel_name}")
                         image_list = panel_groups[panel_name]
+                        
+                        # --- NEW: LOAD SCORES WITH RANK MATCHING ---
+                        scores_map = {} # Key: (Variation_ID, Rank_ID), Value: Score Dict
+                        
+                        if image_list:
+                            panel_dir = os.path.dirname(image_list[0])
+                            score_file = os.path.join(panel_dir, "scores.json")
+                            
+                            if os.path.exists(score_file):
+                                try:
+                                    with open(score_file, "r", encoding="utf-8") as f:
+                                        data = json.load(f)
+                                        for var in data.get("variations", []):
+                                            v_id = var.get("variation_id")
+                                            clip = var.get("clip_score", 0.0)
+                                            
+                                            # Store score for EACH layout rank
+                                            for layout in var.get("layout_options", []):
+                                                rank = layout.get("rank")
+                                                scores_map[(v_id, rank)] = {
+                                                    "final": layout.get("final_score", 0),
+                                                    "clip": clip,
+                                                    "sim": layout.get("sim_score", 0),
+                                                    "geom": layout.get("geom_penalty", 0)
+                                                }
+                                except Exception as e:
+                                    st.warning(f"Could not load scores: {e}")
+
+                        # --- DISPLAY IMAGES & SCORES ---
                         cols = st.columns(3)
                         for j, img_path in enumerate(image_list):
                             col = cols[j % 3]
+                            
+                            # 1. Parse VarID and Rank from filename
+                            # Standard format: "{var_id:02d}_name_{rank}_onlyname.png"
+                            # Example: "00_name_1_onlyname.png" -> Var 0, Rank 1
                             try:
-                                col.image(img_path, caption=os.path.basename(img_path), width='stretch')
+                                fname = os.path.basename(img_path)
+                                parts = fname.split("_")
+                                # parts[0] = var_id, parts[1] = "name", parts[2] = rank
+                                var_id = int(parts[0])
+                                rank_id = int(parts[2]) 
+                            except:
+                                var_id = -1
+                                rank_id = -1
+
+                            # 2. Display Image
+                            try:
+                                col.image(img_path, caption=fname, use_container_width=True)
+                                
+                                # 3. Display Specific Score
+                                key = (var_id, rank_id)
+                                
+                                if key in scores_map:
+                                    s = scores_map[key]
+                                    score_color = "green" if s['final'] > 80 else "orange" if s['final'] > 50 else "red"
+                                    
+                                    col.markdown(f"""
+                                    <div style="text-align:center; background-color:#f0f2f6; padding:5px; border-radius:5px; margin-bottom:10px;">
+                                        <strong style="color:{score_color}; font-size:18px;">{s['final']:.1f}</strong><br>
+                                        <span style="font-size:12px; color:#555;">
+                                            CLIP: <b>{s['clip']:.2f}</b> | Sim: <b>{s['sim']:.2f}</b><br>
+                                            Penalty: <span style="color:red">-{s['geom']:.1f}</span>
+                                        </span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    # If no specific rank found (maybe manual pipeline run?), check for "Best" (Rank 0 default)
+                                    # or just don't show anything to avoid confusion.
+                                    pass
+                                    
                             except Exception as img_e:
-                                col.error(f"Failed to load {os.path.basename(img_path)}: {img_e}")
+                                col.error(f"Failed: {img_e}")
             
         except Exception as e:
             st.error(f"An unexpected error occurred: {e}")
