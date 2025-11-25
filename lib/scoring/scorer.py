@@ -7,62 +7,41 @@ from lib.layout.layout import Speaker
 FONTPATH = "fonts/NotoSansCJK-Regular.ttc"
 
 # ==========================================
-# 1. CLIP MODEL MANAGEMENT
+# 1. CLIP MODEL & PROMPT LOGIC
 # ==========================================
 
 def load_clip_model(model_id="openai/clip-vit-base-patch32"):
-    """Loads the CLIP model and processor."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[Scoring] Loading CLIP model: {model_id} on {device}...")
-
     try:
         model = CLIPModel.from_pretrained(model_id).to(device)
         processor = CLIPProcessor.from_pretrained(model_id)
-        print("[Scoring] CLIP model loaded successfully.")
         return model, processor, device
     except Exception as e:
         print(f"[Scoring] Failed to load CLIP model: {e}")
         return None, None, None
 
 def get_verification_prompt(panel_data):
-    """Constructs the text prompt for CLIP with style tags."""
     descriptions = [ele['content'] for ele in panel_data if ele['type'] == 'description']
     scene_text = " ".join(descriptions)
-    
     if not scene_text:
         dialogues = [ele['content'] for ele in panel_data if ele['type'] == 'dialogue']
         scene_text = " ".join(dialogues)
-
     if len(scene_text) > 200:
         scene_text = scene_text[:200] + "..."
-
     style_suffix = ", rough pencil sketch, manga name, storyboard style, loose lines, messy drawing, monochrome"
     return scene_text + style_suffix
 
 def calculate_clip_score(image_path, text_prompt, model, processor, device):
-    """Calculates Cosine Similarity between image and text."""
-    if model is None or not os.path.exists(image_path):
-        return 0.0
-
+    if model is None or not os.path.exists(image_path): return 0.0
     try:
         image = Image.open(image_path).convert("RGB")
-        inputs = processor(
-            text=[text_prompt], 
-            images=image, 
-            return_tensors="pt", 
-            padding=True, 
-            truncation=True, 
-            max_length=77
-        ).to(device)
-        
+        inputs = processor(text=[text_prompt], images=image, return_tensors="pt", padding=True, truncation=True, max_length=77).to(device)
         with torch.no_grad():
             outputs = model(**inputs)
-        
         image_embeds = outputs.image_embeds / outputs.image_embeds.norm(p=2, dim=-1, keepdim=True)
         text_embeds = outputs.text_embeds / outputs.text_embeds.norm(p=2, dim=-1, keepdim=True)
-        
         return torch.matmul(text_embeds, image_embeds.t()).item()
-        
     except Exception as e:
         print(f"[Scoring] Error calculating CLIP score: {e}")
         return 0.0
@@ -71,22 +50,20 @@ def calculate_clip_score(image_path, text_prompt, model, processor, device):
 # 2. GEOMETRIC PENALTY LOGIC
 # ==========================================
 
-def _simulate_bubble_bboxes(ref_layout, dialogues):
-    """Internal helper to calculate where bubbles would go."""
-    bubbles = []
+def _get_font_metrics():
     try:
         font = ImageFont.truetype(FONTPATH, 20)
         char_bbox = font.getbbox("あ")
-        char_width = char_bbox[2] - char_bbox[0]
-        char_height = char_bbox[3] - char_bbox[1]
-        vertical_margin = 2
-    except Exception:
-        char_width = 20
-        char_height = 20
-        vertical_margin = 2
-        font = None
+        return font, char_bbox[2] - char_bbox[0], char_bbox[3] - char_bbox[1]
+    except:
+        return None, 20, 20
 
-    # Sort speakers to match reading order/pipeline logic
+def _simulate_dialogue_bboxes(ref_layout, dialogues):
+    """Calculates bubbles for characters (Speakers)."""
+    bubbles = []
+    _, char_width, char_height = _get_font_metrics()
+    vertical_margin = 2
+
     ref_speakers = [ele for ele in ref_layout.elements if isinstance(ele, Speaker)]
     
     def custom_sort(element):
@@ -102,7 +79,6 @@ def _simulate_bubble_bboxes(ref_layout, dialogues):
     for ref_element in ref_speakers:
         if panel_pointer >= len(dialogues): break
         
-        # Find largest text slot
         ref_bbox = [-1, -1, -1, -1]
         if ref_element.text_info:
             for text_obj in ref_element.text_info:
@@ -113,7 +89,6 @@ def _simulate_bubble_bboxes(ref_layout, dialogues):
             panel_pointer += 1
             continue
 
-        # Calculate size
         text_content = dialogues[panel_pointer]
         box_height = ref_bbox[3] - ref_bbox[1]
         chars_per_col = int(box_height / (char_height + vertical_margin))
@@ -122,17 +97,38 @@ def _simulate_bubble_bboxes(ref_layout, dialogues):
         num_cols = int(len(text_content) / chars_per_col) + 1
         estimated_width = char_width * num_cols
         
-        final_x2 = ref_bbox[2]
-        final_x1 = ref_bbox[2] - estimated_width
-        final_y1 = ref_bbox[1]
-        final_y2 = ref_bbox[3]
-        
-        bubbles.append([final_x1, final_y1, final_x2, final_y2])
+        bubbles.append([ref_bbox[2] - estimated_width, ref_bbox[1], ref_bbox[2], ref_bbox[3]])
         panel_pointer += 1
         
     return bubbles
 
-def _calculate_intersection_area(box1, box2):
+def _simulate_monologue_bbox(ref_layout, monologue_text):
+    """Calculates the bubble for the Monologue (Unrelated Text)."""
+    if not monologue_text or not hasattr(ref_layout, 'unrelated_text_bbox') or not ref_layout.unrelated_text_bbox:
+        return None
+
+    _, char_width, char_height = _get_font_metrics()
+    vertical_margin = 2
+
+    # Find the best slot for monologue (usually the right-most one)
+    unrelated_bboxes = sorted([item["bbox"] for item in ref_layout.unrelated_text_bbox], key=lambda x: x[2], reverse=True)
+    
+    if not unrelated_bboxes:
+        return None
+        
+    target_bbox = unrelated_bboxes[0]
+    
+    box_height = target_bbox[3] - target_bbox[1]
+    chars_per_col = int(box_height / (char_height + vertical_margin))
+    if chars_per_col < 1: chars_per_col = 1
+    
+    num_cols = int(len(monologue_text) / chars_per_col) + 1
+    estimated_width = char_width * num_cols
+    
+    # Monologues are also anchored right
+    return [target_bbox[2] - estimated_width, target_bbox[1], target_bbox[2], target_bbox[3]]
+
+def _calculate_intersection(box1, box2):
     x_left = max(box1[0], box2[0])
     y_top = max(box1[1], box2[1])
     x_right = min(box1[2], box2[2])
@@ -142,20 +138,33 @@ def _calculate_intersection_area(box1, box2):
 
 def _get_face_bbox(person, width, height):
     if not person.face_keypoints_2d: return None
-    xs = [kp[0] for kp in person.face_keypoints_2d]
-    ys = [kp[1] for kp in person.face_keypoints_2d]
+    xs = [kp[0] for kp in person.face_keypoints_2d if kp[0] > 0]
+    ys = [kp[1] for kp in person.face_keypoints_2d if kp[1] > 0]
+    if not xs or not ys: return None
     return [min(xs)*width, min(ys)*height, max(xs)*width, max(ys)*height]
 
-def calculate_geometric_penalty(ref_layout, dialogues, people_result):
+def calculate_geometric_penalty(ref_layout, panel_data, people_result):
     """
-    Calculates the total penalty score for a layout based on overlaps.
-    Automatically simulates bubble positions based on the text.
+    Calculates penalty for BOTH Dialogues and Monologues overlapping faces/bodies.
+    Args:
+        ref_layout: The MangaLayout template.
+        panel_data: The list of dictionaries (the raw panel content).
+        people_result: OpenPose result.
     """
     if not ref_layout or not people_result or not people_result.people:
         return 0.0
 
-    # 1. Simulate where the bubbles will be
-    bubbles = _simulate_bubble_bboxes(ref_layout, dialogues)
+    # 1. Extract Texts
+    dialogues = [ele["content"] for ele in panel_data if ele["type"] == "dialogue"]
+    monologues = [ele["content"] for ele in panel_data if ele["type"] == "monologue"]
+    total_monologue = "".join(monologues)
+
+    # 2. Simulate All Bubbles
+    bubbles = _simulate_dialogue_bboxes(ref_layout, dialogues)
+    
+    mono_bbox = _simulate_monologue_bbox(ref_layout, total_monologue)
+    if mono_bbox:
+        bubbles.append(mono_bbox) # Add monologue to the check list
     
     width = people_result.canvas_width
     height = people_result.canvas_height
@@ -170,16 +179,16 @@ def calculate_geometric_penalty(ref_layout, dialogues, people_result):
             if person.pose_keypoints_2d:
                 pxs = [kp[0] for kp in person.pose_keypoints_2d if kp[0] > 0]
                 pys = [kp[1] for kp in person.pose_keypoints_2d if kp[1] > 0]
-                p_bbox = [min(pxs)*width, min(pys)*height, max(pxs)*width, max(pys)*height]
-                
-                intersect = _calculate_intersection_area(b_bbox, p_bbox)
-                if intersect > 0:
-                    total_penalty += (intersect / b_area) * 100 * 1.0
+                if pxs and pys:
+                    p_bbox = [min(pxs)*width, min(pys)*height, max(pxs)*width, max(pys)*height]
+                    intersect = _calculate_intersection(b_bbox, p_bbox)
+                    if intersect > 0:
+                        total_penalty += (intersect / b_area) * 100 * 1.0
 
             # Face Overlap (Weight: 5.0)
             f_bbox = _get_face_bbox(person, width, height)
             if f_bbox:
-                intersect = _calculate_intersection_area(b_bbox, f_bbox)
+                intersect = _calculate_intersection(b_bbox, f_bbox)
                 if intersect > 0:
                     total_penalty += (intersect / b_area) * 100 * 5.0
 

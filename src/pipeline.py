@@ -92,6 +92,14 @@ def main():
     for i, prompt in tqdm(enumerate(prompts), desc="Generating names"):
         panel_dir = os.path.join(image_base_dir, f"panel{i:03d}")
         os.makedirs(panel_dir, exist_ok=True)
+        
+        panel_entry = {
+            "panel_index": i,
+            "panel_dir": panel_dir,
+            "prompt": prompt, # Needed for CLIP later
+            "variations": []
+        }
+
         for j in range(num_images):
 
             max_retries = 3  
@@ -119,7 +127,9 @@ def main():
                 print(f"    ! Failed to generate a valid layout after {max_retries} attempts. Skipping this image.")
                 continue
             
+    
             scored_layouts = similar_layouts(layout)
+            layout_options = []
             for idx_ref_layout, scored_layout in enumerate(
                 scored_layouts[:NUM_REFERENCES]
             ):
@@ -127,9 +137,36 @@ def main():
                 save_path = os.path.join(
                     panel_dir, f"{j:02d}_name_{idx_ref_layout:1d}.png"
                 )
+                ref_layout = scored_layout[0] # The template object
+                sim_score = scored_layout[1]
+                geom_penalty = calculate_geometric_penalty(
+                        ref_layout, 
+                        panels[i], 
+                        openpose_result
+                    )
+
+
                 generate_name(
                     openpose_result, layout, scored_layout, panels[i], save_path
                 )
+
+                layout_options.append({
+                        "rank": idx_ref_layout,
+                        "template_path": ref_layout.image_path,
+                        "generated_image_path": save_path, # Saved for reference
+                        "sim_score": sim_score,
+                        "geom_penalty": geom_penalty,
+                    })
+                
+            panel_entry["variations"].append({
+                    "variation_id": j,
+                    "image_path": image_path,        # Raw image (for CLIP scoring)
+                    "anime_image_path": anime_image_path,
+                    "layout_options": layout_options # Contains the Geom Scores & Output Paths
+                })
+            score_file_path = os.path.join(panel_dir, "scores.json")
+            with open(score_file_path, "w", encoding="utf-8") as f:
+                json.dump(panel_entry, f, indent=4, default=str)
 
 
 if __name__ == "__main__":
