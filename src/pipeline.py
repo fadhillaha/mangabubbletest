@@ -116,6 +116,7 @@ def main():
                 anime_image_path = os.path.join(panel_dir, f"{j:02d}_anime.png")
                 generate_animepose_image(image_path, prompt, anime_image_path)
                 openpose_result = run_controlnet_openpose(image_path, anime_image_path)
+                openpose_result2 = run_controlnet_openpose(anime_image_path)
                 width, height = openpose_result.canvas_width, openpose_result.canvas_height
                 bboxes = controlnet2bboxes(openpose_result)
                 layout = generate_layout(bboxes, panels[i], width, height)
@@ -142,7 +143,10 @@ def main():
                 geom_penalty = calculate_geometric_penalty(
                         ref_layout, 
                         panels[i], 
-                        openpose_result
+                        openpose_result2,
+                        os.path.join(
+                    panel_dir, f"{j:02d}_name_{idx_ref_layout:1d}_bbox.png"
+                )
                     )
 
 
@@ -188,7 +192,7 @@ def main():
             panel_entry = json.load(f)
 
         # Prepare Verification Prompt (Description + Style Tags)
-        ver_prompt = get_verification_prompt(panels[i])
+        ver_prompt = get_verification_prompt(prompt)
         
         best_score = -9999
         winner_name = "None"
@@ -199,7 +203,7 @@ def main():
             # A. Calculate CLIP Score (Once per image variation)
             # We check if the image matches the script description
             c_score = calculate_clip_score(
-                var["image_path"], 
+                var["anime_image_path"], 
                 ver_prompt, 
                 clip_model, 
                 clip_processor, 
@@ -211,10 +215,9 @@ def main():
             for layout_opt in var["layout_options"]:
                 sim = layout_opt["sim_score"]
                 geom = layout_opt["geom_penalty"]
-                
                 # THE FORMULA:
                 # Layout Similarity (Base) + CLIP (Content) - Geometric (Penalty)
-                final_score = (sim * 100) + (c_score * 50) - geom
+                final_score = (sim*10) + (c_score * 50) - (geom)
                 layout_opt["final_score"] = final_score
                 
                 # Check if this is the best one so far

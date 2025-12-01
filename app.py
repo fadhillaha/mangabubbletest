@@ -147,6 +147,29 @@ else:
     view_path = None
 
 # D. Display Logic
+# Fix for tab didnt diplayed properly
+st.markdown("""
+<style>
+    /* Force the tab list to wrap to multiple lines */
+    .stTabs [data-baseweb="tab-list"] {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    /* Hide the sliding red underline (it looks broken when wrapping) */
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none;
+    }
+            
+    .stTabs [data-baseweb="tab"] {
+        height: 30px;
+        white-space: pre-wrap;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+
 if view_path and os.path.exists(view_path):
     
     # --- VIEW SETTINGS ---
@@ -180,7 +203,6 @@ if view_path and os.path.exists(view_path):
         # --- DISPLAY TABS ---
         panel_names = sorted(panel_groups.keys())
         tabs = st.tabs(panel_names)
-        
         for i, panel_name in enumerate(panel_names):
             with tabs[i]:
                 image_list = panel_groups[panel_name]
@@ -256,11 +278,11 @@ if view_path and os.path.exists(view_path):
                         s = item["score"]
                         
                         try:
-                            col.image(item["path"], caption=item["name"], use_container_width=True)
+                            col.image(item["path"], caption=item["name"], width='stretch')
                             
                             if s["final"] != -999:
-                                score_color = "green" if s['final'] > 80 else "orange" if s['final'] > 50 else "red"
-                                border_color = "#d4edda" if s['final'] > 80 else "#fff3cd" if s['final'] > 50 else "#f8d7da"
+                                score_color = "green" if s['final'] > 30 else "orange" if s['final'] > 15 else "red"
+                                border_color = "#d4edda" if s['final'] > 30 else "#fff3cd" if s['final'] > 15 else "#f8d7da"
                                 
                                 col.markdown(f"""
                                 <div style="text-align:center; background-color:{border_color}; padding:8px; border-radius:8px; margin-bottom:15px; border:1px solid {score_color};">
