@@ -168,6 +168,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* Make st.container(border=True) border thicker */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-width: 20px;          /* bolder border */
+    border-radius: 10px;        /* optional: round corners a bit more */
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 
 if view_path and os.path.exists(view_path):

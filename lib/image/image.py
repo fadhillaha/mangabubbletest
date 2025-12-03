@@ -118,9 +118,13 @@ def generate_image(client, prompt, image_path,num_retry=5):
     return
 
 def generate_image_with_sd(prompt, image_path):
+    negative_prompt = (
+    "nsfw, (easynegative:1), 3d, lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]"
+    )
     model="tAnimeV4Pruned_v40"
     payload = {
         "prompt": prompt,
+        "negative_prompt":negative_prompt,
         "override_settings" : {
             "sd_model_checkpoint" : model,
         },

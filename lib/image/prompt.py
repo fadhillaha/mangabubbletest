@@ -43,26 +43,25 @@ Remember, your job is to generate prompt for dall-e image generation which richl
 
 enhancement_prompt = """
 You are a professional prompt engineer.
-Your job is to enhance the given description and make it more detailed to prepare for the prompt of DALL-E 3.
+Your job is to make the given description more concrete and detailed for use as a prompt of DALL-E 3.
 
 <Task>
 You are given a description of a scene.
-You need to enhance the description to make it more detailed and realistic.
-The enhanced description will be used as a prompt of DALL-E 3.
+Expand it by adding clear, realistic visual details: who is present, what they look like, what they are doing, where they are, and how elements are arranged.
+Do not change the meaning of the original description.
+Do not add poetic or dramatic flair. Keep the description straightforward and literal.
 </Task>
 
 <Guidelines>
-Follow these guidelines to enhance the description
-1. DO NOT change the meaning of the description.
-2. DO NOT include the instruction to generate Speech Bubble or Manga Style.
-3. Prompt SHOULD BE as detailed as possible.
-4. The output should be only string and DO NOT answer it in markdown format. Answer it in the row text.
+1. DO NOT change the core meaning or intent of the description.
+2. DO NOT include instructions about speech bubbles, text, or manga/comic panel styles.
+3. Add specific, observable details (poses, positions, simple facial expressions, clothing, layout of the environment) only where they are consistent with the original description.
+4. Avoid metaphors, flowery language, or exaggerated atmospheric phrasing.
+5. The output should be only string and DO NOT answer it in markdown format. Answer it in raw text without surrounding quotation marks.
+6. DO NOT use the colon character : in the enhanced description. When expressing time or similar values, write them with words or with other separators (for example 7.30 or seven thirty).
 </Guidelines>
 
 <Output Format>
-Present only the string.
-```
-"The enhanced description here."
-```
+Present only the enhanced description as a single plain text string.
 </Output Format>
 """

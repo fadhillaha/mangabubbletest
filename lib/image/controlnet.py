@@ -124,7 +124,7 @@ def run_controlnet_openpose(image_path, controlnetres_image_path=None,output_pat
 
 def generate_with_controlnet_openpose(pose_image_path, prompt, save_path, model="tAnimeV4Pruned_v40"):
     negative_prompt = (
-    "nsfw, (photorealistic:1.5), (color:1.5), (shading:1.4), (smooth:1.4), 3d, render, sharp focus, nice, pretty, masterpiece, best quality"
+    "nsfw, (easynegative:0.8), (photorealistic:1.5), (color:1.5), (shading:1.4), (smooth:1.4), 3d, render, sharp focus, nice, pretty, masterpiece, best quality, text, error, fewer, extra, missing,chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]"
     )
 
     with open(pose_image_path, "rb") as f:
@@ -138,7 +138,7 @@ def generate_with_controlnet_openpose(pose_image_path, prompt, save_path, model=
         "sampler_name" : "Euler a",
         "scheduler" : "Automatic",
         "steps": 20,
-        "cfg_scale" : 4,
+        "cfg_scale" : 5,
         "width": 512,
         "height": 512,
         "seed" : -1,
