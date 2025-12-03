@@ -30,7 +30,7 @@ from lib.scoring.scorer import (
     calculate_clip_score,
     calculate_geometric_penalty
 )
-
+from lib.script.analyze import analyze_storyboard
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pipeline script for processing")
@@ -84,6 +84,12 @@ def main():
     print(speakers)
     print("Converting elements to panels...")
     panels = ele2panels(client, elements, base_dir)
+    print("Generating Storyboard Metadata...")
+    storyboard_data = analyze_storyboard(client, panels, base_dir)
+    if storyboard_data:
+        first = storyboard_data[0]
+        print(f" > First Panel Strategy: {first.get('suggested_aspect_ratio', 'N/A')} ({first.get('reasoning', '')})")
+    # -------------------------
     print("Generating image prompts...")
     prompts = generate_image_prompts(client, panels, speakers, base_dir)
     print("Enhancing prompts...")
