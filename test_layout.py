@@ -1,7 +1,7 @@
 import json
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from lib.page.page_layout import PageLayoutEngine # <--- Using your new file name
+from lib.page.greedy_layout import PageLayoutEngine # <--- Using your new file name
 
 # 1. Load the metadata you just generated
 METADATA_PATH = "output\\ui_run_20251203_113053\\20251203_1131\\panel_metadata.json" # UPDATE THIS PATH
