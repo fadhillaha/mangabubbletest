@@ -1,5 +1,6 @@
 import os
 import torch
+import json
 from PIL import Image, ImageFont
 from transformers import CLIPProcessor, CLIPModel
 from lib.layout.layout import Speaker
@@ -322,3 +323,74 @@ def calculate_geometric_penalty(ref_layout, panel_data, people_result, bbox_save
         _visualize_penalty_debug(people_result, bubbles, bbox_save_path, total_penalty)
 
     return total_penalty
+
+def run_panel_scoring(base_dir, prompts):
+    """
+    Runs the final scoring pass on all generated panels.
+    Calculates CLIP scores and combines them with geometric penalties.
+    Updates the scores.json files in place.
+    """
+    image_base_dir = os.path.join(base_dir, "images")
+    
+    # 1. Load Model (Heavy operation, done once)
+    clip_model, clip_processor, device = load_clip_model()
+    if not clip_model:
+        print("Skipping scoring due to model load failure.")
+        return
+
+    # 2. Iterate through panels
+    for i, prompt in enumerate(prompts):
+        panel_dir = os.path.join(image_base_dir, f"panel{i:03d}")
+        score_file = os.path.join(panel_dir, "scores.json")
+        
+        # Skip if generation failed for this panel
+        if not os.path.exists(score_file):
+            continue
+
+        # Load the data
+        try:
+            with open(score_file, "r", encoding="utf-8") as f:
+                panel_entry = json.load(f)
+        except Exception as e:
+            print(f"Error loading scores for panel {i}: {e}")
+            continue
+
+        # Prepare Verification Prompt
+        ver_prompt = get_verification_prompt(prompt)
+        
+        best_score = -9999
+        winner_name = "None"
+
+        print(f"Scoring Panel {i}...")
+
+        for var in panel_entry["variations"]:
+            # A. Calculate CLIP Score
+            c_score = calculate_clip_score(
+                var["anime_image_path"], 
+                ver_prompt, 
+                clip_model, 
+                clip_processor, 
+                device
+            )
+            var["clip_score"] = c_score
+
+            # B. Calculate Final Score
+            for layout_opt in var["layout_options"]:
+                sim = layout_opt["sim_score"]
+                geom = layout_opt["geom_penalty"]
+                
+                # THE FORMULA: Layout Similarity + CLIP - Geometric Penalty
+                final_score = (sim * 10) + (c_score * 50) - (geom)
+                layout_opt["final_score"] = final_score
+                
+                # Track winner
+                if final_score > best_score:
+                    best_score = final_score
+                    fname = os.path.basename(layout_opt.get("generated_image_path", "??"))
+                    winner_name = f"Var {var['variation_id']} / {fname}"
+
+        # 3. Save updates
+        with open(score_file, "w", encoding="utf-8") as f:
+            json.dump(panel_entry, f, indent=4, default=str)
+            
+        print(f"  🏆 Winner: {winner_name} (Score: {best_score:.2f})")

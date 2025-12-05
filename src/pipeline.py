@@ -28,7 +28,8 @@ from lib.scoring.scorer import (
     load_clip_model,
     get_verification_prompt,
     calculate_clip_score,
-    calculate_geometric_penalty
+    calculate_geometric_penalty,
+    run_panel_scoring
 )
 from lib.script.analyze import analyze_storyboard
 
@@ -181,63 +182,7 @@ def main():
     # ==========================================
     # SCORING PART
     # ==========================================
-
-    clip_model, clip_processor, device = load_clip_model()
-
-    # 2. Iterate through the panels again to score them
-    for i, prompt in enumerate(prompts):
-        panel_dir = os.path.join(image_base_dir, f"panel{i:03d}")
-        score_file = os.path.join(panel_dir, "scores.json")
-        
-        # Skip if generation failed for this panel
-        if not os.path.exists(score_file):
-            continue
-
-        # Load the Geometric data we saved in Pass 1
-        with open(score_file, "r", encoding="utf-8") as f:
-            panel_entry = json.load(f)
-
-        # Prepare Verification Prompt (Description + Style Tags)
-        ver_prompt = get_verification_prompt(prompt)
-        
-        best_score = -9999
-        winner_name = "None"
-
-        print(f"Scoring Panel {i}...")
-
-        for var in panel_entry["variations"]:
-            # A. Calculate CLIP Score (Once per image variation)
-            # We check if the image matches the script description
-            c_score = calculate_clip_score(
-                var["anime_image_path"], 
-                ver_prompt, 
-                clip_model, 
-                clip_processor, 
-                device
-            )
-            var["clip_score"] = c_score
-
-            # B. Calculate Final Score for every layout option
-            for layout_opt in var["layout_options"]:
-                sim = layout_opt["sim_score"]
-                geom = layout_opt["geom_penalty"]
-                # THE FORMULA:
-                # Layout Similarity (Base) + CLIP (Content) - Geometric (Penalty)
-                final_score = (sim*10) + (c_score * 50) - (geom)
-                layout_opt["final_score"] = final_score
-                
-                # Check if this is the best one so far
-                if final_score > best_score:
-                    best_score = final_score
-                    # Get the filename from the path
-                    fname = os.path.basename(layout_opt.get("generated_image_path", "??"))
-                    winner_name = f"Var {var['variation_id']} / {fname}"
-
-        # 3. Save the updated scores back to JSON
-        with open(score_file, "w", encoding="utf-8") as f:
-            json.dump(panel_entry, f, indent=4, default=str)
-            
-        print(f"  🏆 Winner: {winner_name} (Score: {best_score:.2f})")
+    run_panel_scoring(base_dir, prompts)
 
 if __name__ == "__main__":
     main()

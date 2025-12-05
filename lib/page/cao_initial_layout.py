@@ -3,10 +3,11 @@ import random
 import os
 
 class CaoInitialLayout:
-    def __init__(self, style_model_path, page_width=1000, page_height=1414, gutter=10):
+    def __init__(self, style_model_path, page_width=1000, page_height=1414, gutter=10, direction='rtl'):
         self.w = page_width
         self.h = page_height
         self.gutter = gutter
+        self.direction = direction.lower()
         
         # Load the learned probabilities
         if not os.path.exists(style_model_path):
@@ -50,7 +51,7 @@ class CaoInitialLayout:
     
     def generate_top_k(self, panels, k=3):
         """
-        Generates 1000 layouts and returns the top K best ones.
+        Generates 1000 layouts and returns the top K *unique* best ones.
         Returns: List of tuples [(score, layout_panels), ...]
         """
         if not panels: return []
@@ -65,34 +66,42 @@ class CaoInitialLayout:
             tree = self._random_tree(panels, root_rect, depth=0)
             cost = self._score_tree(tree, num_panels)
             
-            # Store tuple: (Cost, Tree)
-            candidates.append((cost, tree))
+            # Create a simple hash of the tree structure (Splits + Panel Indices)
+            # We don't care about precise float coordinates for uniqueness, just the topology
+            tree_hash = self._hash_tree(tree)
+            
+            candidates.append((cost, tree, tree_hash))
             
         # 2. Sort by Cost (Lowest is best)
         candidates.sort(key=lambda x: x[0])
         
-        # 3. Flatten the top K
+        # 3. Flatten the top K unique layouts
         results = []
-        # We use a set of hashes to avoid showing identical duplicates
         seen_hashes = set()
         
-        for cost, tree in candidates:
+        for cost, tree, t_hash in candidates:
             if len(results) >= k: break
             
-            # Simple deduplication (optional but recommended)
-            # We skip if we've seen this exact tree structure structure before
-            # (Implementation of hash is skipped for simplicity, we just take top K)
+            if t_hash in seen_hashes:
+                continue # Skip duplicate structure
+            
+            seen_hashes.add(t_hash)
             
             layout_flat = self._flatten_tree(tree, panels)
             results.append((cost, layout_flat))
             
         return results
 
+    def _hash_tree(self, node):
+        """Helper to create a unique signature for a tree structure."""
+        if node["type"] == "leaf":
+            return f"L({node['p_idx']})"
+        else:
+            # Hash format: "SplitType[LeftHash|RightHash]"
+            # This captures the structure regardless of precise coordinates
+            return f"{node['split']}[{self._hash_tree(node['left'])}|{self._hash_tree(node['right'])}]"
+
     def _random_tree(self, panels, rect, depth):
-        """
-        Recursively slices the space using the learned 'structure' probabilities.
-        """
-        # Base Case: Leaf Node
         if len(panels) == 1:
             return {
                 "type": "leaf", 
@@ -100,54 +109,67 @@ class CaoInitialLayout:
                 "rect": rect
             }
 
-        # --- DECISION 1: Split Direction (H vs V) ---
+        # --- DECISION 1: Split Direction ---
         key = f"depth_{depth}"
-        if key not in self.models["structure"]: 
-            key = "depth_0"
-            
+        if key not in self.models["structure"]: key = "depth_0"
         prob_h = self.models["structure"][key]["H"]
         split_type = "H" if random.random() < prob_h else "V"
         
-        # --- DECISION 2: Split Position (Ratio) ---
+        # --- DECISION 2: Split Ratio ---
         split_idx = random.randint(1, len(panels)-1)
-        grp_a = panels[:split_idx] # Earlier panels
-        grp_b = panels[split_idx:] # Later panels
+        grp_a = panels[:split_idx] # Earlier panels (e.g. Panel 0)
+        grp_b = panels[split_idx:] # Later panels (e.g. Panel 1)
         
-        # Calculate target ratio based on importance
         w_a = sum(p.get('importance_score', 5) for p in grp_a)
         w_tot = sum(p.get('importance_score', 5) for p in panels)
         target_ratio = w_a / w_tot if w_tot > 0 else 0.5
         
-        # Add "Organic Wiggle" (+- 5%)
+        # Organic Wiggle
         ratio = max(0.2, min(0.8, target_ratio + random.uniform(-0.05, 0.05)))
         
         x, y, w, h = rect['x'], rect['y'], rect['w'], rect['h']
         
         if split_type == "H":
-            # Horizontal Split (Top / Bottom)
-            # Group A (Earlier) -> Top
-            # Group B (Later) -> Bottom
+            # Horizontal: Top (A) -> Bottom (B). Unchanged for RTL.
             rect_a = {'x': x, 'y': y, 'w': w, 'h': h * ratio}
             rect_b = {'x': x, 'y': y + h * ratio, 'w': w, 'h': h * (1 - ratio)}
-        else:
-            # Vertical Split (Left / Right) - RTL FIX
-            # Group A (Earlier) -> RIGHT
-            # Group B (Later) -> LEFT
             
+            return {
+                "type": "node", "split": "H",
+                "left": self._random_tree(grp_a, rect_a, depth + 1),  # Top
+                "right": self._random_tree(grp_b, rect_b, depth + 1)  # Bottom
+            }
+        else:
+            # Vertical: Left vs Right.
             w_a = w * ratio
             w_b = w * (1 - ratio)
             
-            # Rect A starts after Rect B ends (on the X axis)
-            rect_a = {'x': x + w_b, 'y': y, 'w': w_a, 'h': h}
-            rect_b = {'x': x, 'y': y, 'w': w_b, 'h': h}
+            if self.direction == 'rtl':
+                # RTL FIX: 
+                # Group A (Panel 0) goes RIGHT. Group B (Panel 1) goes LEFT.
+                # We must map Group B to the "Left Child" of the tree 
+                # so the Optimizer puts it on the Geometric Left.
+                
+                rect_right = {'x': x + w_b, 'y': y, 'w': w_a, 'h': h} # A goes here
+                rect_left  = {'x': x,       'y': y, 'w': w_b, 'h': h} # B goes here
+                
+                return {
+                    "type": "node", "split": "V",
+                    "left": self._random_tree(grp_b, rect_left, depth + 1),   # Left Branch = Later Panels
+                    "right": self._random_tree(grp_a, rect_right, depth + 1)  # Right Branch = Earlier Panels
+                }
+            else:
+                # LTR: Group A goes Left.
+                rect_left  = {'x': x,       'y': y, 'w': w_a, 'h': h}
+                rect_right = {'x': x + w_a, 'y': y, 'w': w_b, 'h': h}
+                
+                return {
+                    "type": "node", "split": "V",
+                    "left": self._random_tree(grp_a, rect_left, depth + 1),   # Left Branch = Earlier Panels
+                    "right": self._random_tree(grp_b, rect_right, depth + 1)  # Right Branch = Later Panels
+                }
             
-        return {
-            "type": "node",
-            "split": split_type,
-            "left": self._random_tree(grp_a, rect_a, depth + 1),
-            "right": self._random_tree(grp_b, rect_b, depth + 1)
-        }
-
+            
     def _score_tree(self, tree, num_panels):
         """
         Calculates the 'Badness' of a layout. Lower is better.
