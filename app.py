@@ -309,3 +309,62 @@ if view_path and os.path.exists(view_path):
                                 """, unsafe_allow_html=True)
                         except Exception as e:
                             col.error(f"Error: {e}")
+
+# --- 4. FINAL MANGA PAGES (New Section) ---
+if view_path and os.path.exists(view_path):
+    st.markdown("---")
+    st.subheader("4. Final Manga Pages")
+    
+    # 1. FIND THE ACTUAL DATA FOLDER (Handle nested timestamp structure)
+    # Pipeline creates: output/run_name/YYYYMMDD_HHMM/final_chapter
+    # We are currently at: output/run_name
+    
+    # Look for subdirectories
+    subdirs = [d for d in os.listdir(view_path) if os.path.isdir(os.path.join(view_path, d))]
+    subdirs.sort(reverse=True) # Sort to get latest timestamp if multiple exist
+    
+    target_dir = view_path
+    if subdirs:
+        # If we find a timestamp-like folder, go inside it
+        # (Simple heuristic: checking if it looks like a date or just taking the latest)
+        target_dir = os.path.join(view_path, subdirs[0])
+
+    final_chapter_dir = os.path.join(target_dir, "final_chapter")
+    
+    # 2. CHECK & DISPLAY
+    if not os.path.exists(final_chapter_dir):
+        # Fallback: Maybe the user ran the test script on the parent folder?
+        # Check parent just in case
+        fallback_dir = os.path.join(view_path, "final_chapter")
+        if os.path.exists(fallback_dir):
+            final_chapter_dir = fallback_dir
+        else:
+            st.warning(f"⚠️ No 'final_chapter' folder found in `{os.path.basename(target_dir)}`")
+            st.info("Did you run the updated pipeline or the 'test_generated_pages.py' script?")
+    
+    if os.path.exists(final_chapter_dir):
+        # A. PDF Download
+        pdf_path = os.path.join(final_chapter_dir, "manga_chapter.pdf")
+        if os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as f:
+                st.download_button(
+                    label="📄 Download Full Chapter PDF",
+                    data=f,
+                    file_name="manga_chapter.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
+        
+        # B. Page Display
+        page_files = sorted(glob.glob(os.path.join(final_chapter_dir, "page_*.png")))
+        
+        if not page_files:
+            st.warning("Found 'final_chapter' folder, but it is empty.")
+        else:
+            # Create Tabs
+            page_names = [os.path.basename(p).replace(".png", "").replace("_", " ").title() for p in page_files]
+            tabs = st.tabs(page_names)
+            
+            for i, tab in enumerate(tabs):
+                with tab:
+                    st.image(page_files[i], caption=page_names[i], width=600)
