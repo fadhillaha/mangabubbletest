@@ -1,5 +1,3 @@
-import math
-
 def get_optimal_resolution(target_w, target_h):
     """
     Finds the closest Safe SD 1.5 resolution for a given target width/height.

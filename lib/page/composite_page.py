@@ -3,9 +3,11 @@ from PIL import Image, ImageDraw
 import numpy as np
 
 class PageCompositor:
-    def __init__(self, page_width=1000, page_height=1414, gutter_color=(0, 0, 0)):
+    def __init__(self, page_width=1000, page_height=1414, margin_x=0, margin_y=0,gutter_color=(255, 255, 255)):
         self.w = page_width
         self.h = page_height
+        self.mx = margin_x
+        self.my = margin_y
         self.bg_color = gutter_color
 
     def create_page(self, panels_layout, image_paths, output_path):
@@ -26,10 +28,27 @@ class PageCompositor:
         # 2. Iterate through panels
         for p in panels_layout:
             idx = p['panel_index']
+
+            offset_poly = []
+            for pt in p['polygon']:
+                ox = pt[0] + self.mx
+                oy = pt[1] + self.my
+                offset_poly.append((ox, oy))
+            
+            # Calculate Bounds of the OFFSET polygon
+            xs = [pt[0] for pt in offset_poly]
+            ys = [pt[1] for pt in offset_poly]
+            min_x, max_x = min(xs), max(xs)
+            min_y, max_y = min(ys), max(ys)
+            
+            target_w = int(max_x - min_x)
+            target_h = int(max_y - min_y)
             
             # Skip if we don't have an image for this panel
             if idx not in image_paths:
                 print(f"  [Warning] No image found for Panel {idx}")
+                # Optional: Draw empty placeholder box so you can see the layout
+                draw.line(offset_poly + [offset_poly[0]], fill=(0,0,0), width=5)
                 continue
 
             img_path = image_paths[idx]
@@ -44,7 +63,7 @@ class PageCompositor:
                 continue
             
             # --- A. Prepare the Geometry ---
-            poly_pts = [tuple(pt) for pt in p['polygon']]
+            poly_pts = [tuple(pt) for pt in offset_poly]
             
             # Calculate Bounding Box of the Polygon
             xs = [pt[0] for pt in poly_pts]

@@ -117,7 +117,7 @@ def generate_image(client, prompt, image_path,num_retry=5):
                 raise Exception("Failed to generate images")
     return
 
-def generate_image_with_sd(prompt, image_path):
+def generate_image_with_sd(prompt, image_path, width=512, height=512):
     negative_prompt = (
     "nsfw, (easynegative:1), 3d, lowres, (bad), text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]"
     )
@@ -128,8 +128,8 @@ def generate_image_with_sd(prompt, image_path):
         "override_settings" : {
             "sd_model_checkpoint" : model,
         },
-        "width": 512,
-        "height": 512,
+        "width": width,
+        "height": height,
     }
     response = requests.post("http://127.0.0.1:7860/sdapi/v1/txt2img", json=payload).json()
     image_base64 = response["images"][0]

@@ -3,10 +3,9 @@ import random
 import os
 
 class CaoInitialLayout:
-    def __init__(self, style_model_path, page_width=1000, page_height=1414, gutter=10, direction='rtl'):
+    def __init__(self, style_model_path, page_width=1000, page_height=1414, direction='rtl'):
         self.w = page_width
         self.h = page_height
-        self.gutter = gutter
         self.direction = direction.lower()
         
         # Load the learned probabilities
@@ -169,7 +168,7 @@ class CaoInitialLayout:
                     "right": self._random_tree(grp_b, rect_right, depth + 1)  # Right Branch = Later Panels
                 }
             
-            
+
     def _score_tree(self, tree, num_panels):
         """
         Calculates the 'Badness' of a layout. Lower is better.
@@ -228,13 +227,8 @@ class CaoInitialLayout:
             new_p = orig.copy()
             r = leaf['rect']
             
-            # Apply Gutter
-            new_p['bbox'] = [
-                int(r['x'] + self.gutter),
-                int(r['y'] + self.gutter),
-                int(r['w'] - 2 * self.gutter),
-                int(r['h'] - 2 * self.gutter)
-            ]
+            # Direct copy of rectangle coordinates
+            new_p['bbox'] = [int(r['x']), int(r['y']), int(r['w']), int(r['h'])]
             result.append(new_p)
             
         return result

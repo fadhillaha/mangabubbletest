@@ -8,7 +8,7 @@ from lib.page.composite_page import PageCompositor
 
 # --- CONFIG ---
 MODEL_PATH = "layoutpreparation/style_models.json"
-RUN_DIR = "output/ui_run_20251203_151436/20251203_1515" # <--- UPDATE THIS
+RUN_DIR = "output/ui_run_20251205_155059/20251205_1551" # <--- UPDATE THIS
 
 def get_best_image_for_panel(run_dir, panel_idx):
     """Parses scores.json to find the image path of the highest scoring variation."""
@@ -77,12 +77,42 @@ def main():
         if p_idx not in pages: pages[p_idx] = []
         pages[p_idx].append(p)
 
-    # 3. Initialize Engines
-    topo_engine = CaoInitialLayout(MODEL_PATH, direction='rtl')
-    opt_engine = LayoutOptimizer(MODEL_PATH)
-    compositor = PageCompositor()
+    # --- CONFIGURATION: MANGA PAGE (B5) ---
+    PAGE_WIDTH = 1039   # B5 Width (approx 150dpi)
+    PAGE_HEIGHT = 1476  # B5 Height
+    MARGIN = 80         # White border size
+    GUTTER = 15         # Space between panels
+    
+    # Calculate Live Area (Where panels go)
+    LIVE_WIDTH = PAGE_WIDTH - (MARGIN * 2)
+    LIVE_HEIGHT = PAGE_HEIGHT - (MARGIN * 2)
+    
+    print(f"⚙️ Config: B5 Page ({PAGE_WIDTH}x{PAGE_HEIGHT}) | Live Area ({LIVE_WIDTH}x{LIVE_HEIGHT})")
 
-    # List to store PIL images for PDF generation
+    # 3. Initialize Engines
+    # Layout Engines work on the LIVE AREA (Internal Box)
+    topo_engine = CaoInitialLayout(
+        MODEL_PATH, 
+        page_width=LIVE_WIDTH, 
+        page_height=LIVE_HEIGHT, 
+        direction='rtl'
+    )
+    
+    opt_engine = LayoutOptimizer(
+        MODEL_PATH, 
+        page_width=LIVE_WIDTH, 
+        page_height=LIVE_HEIGHT,
+        gutter=10
+    )
+    
+    # Compositor works on the FULL PAGE (Paper Size)
+    compositor = PageCompositor(
+        page_width=PAGE_WIDTH, 
+        page_height=PAGE_HEIGHT, 
+        margin_x=MARGIN, 
+        margin_y=MARGIN
+    )
+
     pdf_pages = []
 
     # 4. Process Each Page
@@ -93,6 +123,18 @@ def main():
         tree = topo_engine.generate_layout(panel_list, return_tree=True)
         final_layout = opt_engine.optimize(tree, panel_list)
         
+        print(f"  > Layout Geometry for Page {page_num}:")
+        for p in final_layout:
+            idx = p['panel_index']
+            poly = p['polygon']
+            # Calculate Bounds
+            xs = [pt[0] for pt in poly]
+            ys = [pt[1] for pt in poly]
+            w = max(xs) - min(xs)
+            h = max(ys) - min(ys)
+            ratio = w / h if h > 0 else 0
+            print(f"    - Panel {idx}: {int(w)}x{int(h)} px (Ratio: {ratio:.2f})")
+        
         # B. Image Selection
         image_map = {}
         for p in final_layout:
@@ -100,13 +142,13 @@ def main():
             img_path = get_best_image_for_panel(RUN_DIR, idx)
             if img_path: image_map[idx] = img_path
 
-        # C. Composite & Save Image
+        # C. Composite & Save
         output_filename = f"page_{page_num:02d}.png"
         output_path = os.path.join(final_output_dir, output_filename)
         
         compositor.create_page(final_layout, image_map, output_path)
         
-        # D. Add to PDF List
+        # D. Add to PDF
         if os.path.exists(output_path):
             img_obj = Image.open(output_path).convert("RGB")
             pdf_pages.append(img_obj)
@@ -115,7 +157,6 @@ def main():
     if pdf_pages:
         pdf_path = os.path.join(final_output_dir, "manga_chapter.pdf")
         print(f"\n📚 Saving PDF to: {pdf_path}")
-        
         pdf_pages[0].save(
             pdf_path, 
             save_all=True, 
@@ -123,7 +164,7 @@ def main():
         )
         print("✅ Done!")
     else:
-        print("⚠️ No pages were generated, skipping PDF creation.")
+        print("⚠️ No pages were generated.")
 
 if __name__ == "__main__":
     main()

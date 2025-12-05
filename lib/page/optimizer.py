@@ -4,15 +4,50 @@ import json
 import math
 
 class LayoutOptimizer:
-    def __init__(self, style_model_path, page_width=1000, page_height=1414):
+    def __init__(self, style_model_path, page_width=1000, page_height=1414, gutter=20):
         self.w = page_width
         self.h = page_height
+        self.gutter = gutter
         
         with open(style_model_path, 'r') as f:
             data = json.load(f)
             self.shape_model = data["shape"]
             self.mean_deltas = np.array(self.shape_model["mean"])
             self.std_deltas = np.array(self.shape_model["std"]) + 1e-5
+
+    def shrink_panel(polygon, gutter_px):
+        """
+        Shrinks a polygon by 'gutter_px' pixels from all sides (approximated via scaling).
+        """
+        # 1. Calculate Centroid
+        poly_arr = np.array(polygon)
+        xs = poly_arr[:, 0]
+        ys = poly_arr[:, 1]
+        centroid_x = np.mean(xs)
+        centroid_y = np.mean(ys)
+        
+        # 2. Calculate Width/Height to determine Scale Factor
+        w = np.max(xs) - np.min(xs)
+        h = np.max(ys) - np.min(ys)
+        
+        if w <= gutter_px * 2 or h <= gutter_px * 2:
+            return polygon # Too small to shrink safely
+        
+        # Scale factors (approximate uniform shrink)
+        scale_x = (w - gutter_px * 2) / w
+        scale_y = (h - gutter_px * 2) / h
+        
+        # Use the smaller scale to be safe (or uniform scale)
+        scale = min(scale_x, scale_y)
+        
+        new_poly = []
+        for x, y in polygon:
+            # Move point towards centroid
+            nx = centroid_x + (x - centroid_x) * scale
+            ny = centroid_y + (y - centroid_y) * scale
+            new_poly.append([nx, ny])
+            
+        return new_poly
 
     def optimize(self, layout_tree, panels_metadata):
         """
@@ -56,7 +91,52 @@ class LayoutOptimizer:
         )
         
         # 4. Generate Final Shapes
-        return self._tree_to_panels(layout_tree, res.x, panels_metadata)
+        raw_panels = self._tree_to_panels(layout_tree, res.x, panels_metadata)
+    
+        return self._apply_gutters(raw_panels)
+    
+    def _apply_gutters(self, panels):
+        """Internal helper to shrink all panels by the gutter amount."""
+        if self.gutter <= 0:
+            return panels
+            
+        final_panels = []
+        for p in panels:
+            new_p = p.copy()
+            new_p['polygon'] = self._shrink_polygon(p['polygon'], self.gutter)
+            final_panels.append(new_p)
+        return final_panels
+
+    def _shrink_polygon(self, polygon, px):
+        """Shrinks a polygon towards its centroid."""
+        poly_arr = np.array(polygon)
+        xs = poly_arr[:, 0]
+        ys = poly_arr[:, 1]
+        
+        # Centroid
+        cx = np.mean(xs)
+        cy = np.mean(ys)
+        
+        # BBox size
+        w = np.max(xs) - np.min(xs)
+        h = np.max(ys) - np.min(ys)
+        
+        if w <= px * 2 or h <= px * 2:
+            return polygon # Too small to shrink
+            
+        # Calculate Scale Factor
+        # We want to reduce width by (2 * px)
+        scale_x = (w - px * 2) / w
+        scale_y = (h - px * 2) / h
+        scale = min(scale_x, scale_y)
+        
+        new_poly = []
+        for x, y in polygon:
+            nx = cx + (x - cx) * scale
+            ny = cy + (y - cy) * scale
+            new_poly.append([nx, ny])
+            
+        return new_poly
 
     def _energy_function(self, x, tree, nodes, meta):
         # 1. Reconstruct the page geometry with these angles
