@@ -19,13 +19,13 @@ page_1 = [p for p in all_panels if p.get('page_index') == 1]
 
 # --- STAGE 1: Topology ---
 print("Stage 1: Generating Rectangular Tree...")
-initial_engine = CaoInitialLayout(style_model_path=MODEL_PATH, gutter=30 ,direction='ltr')
+initial_engine = CaoInitialLayout(style_model_path=MODEL_PATH ,direction='ltr')
 # NOTE: We need the Tree structure, so return_tree=True
 rect_tree = initial_engine.generate_layout(page_1, return_tree=True) 
 
 # --- STAGE 2: Geometry Optimization ---
 print("Stage 2: Optimizing Shapes (Creating Diagonals)...")
-optimizer = LayoutOptimizer(style_model_path=MODEL_PATH)
+optimizer = LayoutOptimizer(style_model_path=MODEL_PATH, gutter=30 )
 
 # FIX: Pass BOTH the tree and the metadata
 final_layout = optimizer.optimize(rect_tree, page_1)

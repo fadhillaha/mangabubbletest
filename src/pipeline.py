@@ -26,9 +26,6 @@ from lib.image.controlnet import (
 from lib.name.name import generate_name, generate_animepose_image
 
 from lib.scoring.scorer import (
-    load_clip_model,
-    get_verification_prompt,
-    calculate_clip_score,
     calculate_geometric_penalty,
     run_panel_scoring
 )
@@ -53,7 +50,7 @@ def get_best_image_path(panel_dir):
     """Reads scores.json in the panel directory to find the winning image."""
     score_file = os.path.join(panel_dir, "scores.json")
     if not os.path.exists(score_file):
-        return None
+        return os.path.join(panel_dir, "00_anime.png")
         
     try:
         with open(score_file, "r", encoding="utf-8") as f:
@@ -74,7 +71,7 @@ def get_best_image_path(panel_dir):
         return best_path
     except Exception as e:
         print(f"Error reading scores for {panel_dir}: {e}")
-        return None
+        return os.path.join(panel_dir, "00_anime.png")
 
 def main():
     args = parse_args()
@@ -138,7 +135,7 @@ def main():
     print("Enhancing prompts...")
     prompts = enhance_prompts(client, prompts, base_dir)
     print("Calculating Page Layouts...")
-    style_path = "layoutpreparation/style_models.json"
+    style_path = "layoutpreparation/style_models_manga109.json"
     topo_engine = CaoInitialLayout(style_path, page_width=LIVE_WIDTH, page_height=LIVE_HEIGHT, direction='rtl')
     opt_engine = LayoutOptimizer(style_path, page_width=LIVE_WIDTH, page_height=LIVE_HEIGHT, gutter=GUTTER)
     pages = {}

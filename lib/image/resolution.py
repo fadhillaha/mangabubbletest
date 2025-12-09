@@ -19,8 +19,10 @@ def get_optimal_resolution(target_w, target_h):
         (512, 512),  # 1:1   Square
         (768, 512),  # 3:2   Landscape
         (512, 768),  # 2:3   Portrait
-        (896, 512),  # 16:9  Wide (Approx)
-        (512, 896),  # 9:16  Tall (Approx)
+        (896, 512),  # 16:9  Wide 
+        (512, 896),  # 9:16  Tall 
+        (1024, 512),  # 2:1   Ultra wide
+        (384, 768),  # 1:2   Tall Strip 
         
     ]
 
