@@ -19,8 +19,8 @@ except ImportError as e:
     st.error(f"Error importing: {e}. Did you run 'pip install -r requirements.txt'?")
     st.stop()
 
-st.set_page_config(page_title="MangaGen Pipeline", layout="wide")
-st.title("Manga Generation Pipeline 📖")
+st.set_page_config(page_title="NameGen", layout="wide")
+st.title("Manga Name Generation")
 
 # --- 2. SESSION STATE MANAGEMENT ---
 if 'current_view_path' not in st.session_state:
@@ -34,11 +34,11 @@ if not os.path.exists(OUTPUT_ROOT):
     os.makedirs(OUTPUT_ROOT)
 
 # --- 3. GENERATION INPUT ---
-st.subheader("1. New Generation")
+st.subheader("New Generation")
 default_script = 'Scene: A boy and a girl are in a classroom.\nBoy: "Hello! How are you?"\nGirl (surprised): "Oh! Hi. I\'m doing well, thanks."'
 script_text = st.text_area("Script:", value=default_script, height=150)
 
-if st.button("🚀 Generate Panels", type="primary"):
+if st.button("Generate Panels", type="primary"):
     if not script_text.strip():
         st.warning("Please enter a script first.")
     else:
@@ -106,13 +106,13 @@ if st.button("🚀 Generate Panels", type="primary"):
 # --- 4. PERSISTENT LOG DISPLAY ---
 # This section renders independent of the button, so it stays visible after rerun
 if st.session_state['generation_log']:
-    with st.expander("📜 Last Generation Log", expanded=False):
+    with st.expander("Last Generation Log", expanded=False):
         st.text_area("Log Output:", value=st.session_state['generation_log'], height=300)
 
 st.markdown("---")
 
 # --- 5. RESULT VIEWER (Selector & Display) ---
-st.subheader("3. Results Viewer")
+st.subheader("Results Viewer")
 
 # A. Get Run History
 def get_run_folders():
@@ -183,7 +183,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 if view_path and os.path.exists(view_path):
     
     # --- VIEW SETTINGS ---
-    with st.expander("⚙️ View Settings", expanded=True):
+    with st.expander("View Settings", expanded=True):
         col_sort, col_filter = st.columns(2)
         with col_sort:
             sort_mode = st.radio(
@@ -192,7 +192,7 @@ if view_path and os.path.exists(view_path):
                 horizontal=True
             )
         with col_filter:
-            show_best_only = st.checkbox("🏆 Show Only Best Candidate per Panel")
+            show_best_only = st.checkbox("Show Only Best Candidate per Panel")
 
     # Find images
     search_path = os.path.join(view_path, "*", "images", "panel*", "*_onlyname.png")
@@ -313,7 +313,7 @@ if view_path and os.path.exists(view_path):
 # --- 4. FINAL MANGA PAGES (New Section) ---
 if view_path and os.path.exists(view_path):
     st.markdown("---")
-    st.subheader("4. Final Manga Pages")
+    st.subheader("Final Manga Pages")
     
     # 1. FIND THE ACTUAL DATA FOLDER (Handle nested timestamp structure)
     # Pipeline creates: output/run_name/YYYYMMDD_HHMM/final_chapter
@@ -339,7 +339,7 @@ if view_path and os.path.exists(view_path):
         if os.path.exists(fallback_dir):
             final_chapter_dir = fallback_dir
         else:
-            st.warning(f"⚠️ No 'final_chapter' folder found in `{os.path.basename(target_dir)}`")
+            st.warning(f"No 'final_chapter' folder found in `{os.path.basename(target_dir)}`")
             st.info("Did you run the updated pipeline or the 'test_generated_pages.py' script?")
     
     if os.path.exists(final_chapter_dir):

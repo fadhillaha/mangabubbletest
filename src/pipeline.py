@@ -304,6 +304,7 @@ def main():
             if best_img and os.path.exists(best_img):
                 page_image_map[idx] = best_img
             else:
+                page_image_map[idx] = os.path.join(panel_dir,"00_anime.png")
                 print(f"    ! Warning: No valid image found for Panel {idx}")
 
         # C. Composite Page
