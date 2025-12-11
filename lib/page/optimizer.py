@@ -48,6 +48,8 @@ class LayoutOptimizer:
             new_poly.append([nx, ny])
             
         return new_poly
+    
+    
 
     def optimize(self, layout_tree, panels_metadata):
         """
@@ -137,47 +139,108 @@ class LayoutOptimizer:
             new_poly.append([nx, ny])
             
         return new_poly
-
+    
     def _energy_function(self, x, tree, nodes, meta):
-        # 1. Reconstruct the page geometry with these angles
-        # This is the heavy part: "Slicing" the polygon recursively
+        """
+        Full Energy Formula:
+        E_total = (W_AREA * E_area) + (W_SHAPE * E_shape) + (W_REG * E_reg)
+        """
+        # --- HYPERPARAMETERS ---
+        W_AREA = 10.0    # Priority: Match the requested size
+        W_SHAPE = 5.0    # Priority: Keep panels rectangular-ish
+        W_REG = 50.0     # Priority: Keep cuts straight (angle ~ 0)
+
+        # 1. Reconstruct Geometry
         final_panels = self._tree_to_panels(tree, x, meta)
         
-        total_cost = 0
-        
-        # 2. Calculate Costs
+        total_cost = 0.0
+
+        # --- E_REG: Regularization Cost ---
+        # Penalize angles that deviate from 0 (Diagonal cuts are expensive)
+        # x array layout: [ratio, angle, ratio, angle, ...]
+        angles = x[1::2] 
+        # Sum of squares of angles
+        reg_cost = np.sum(angles ** 2)
+        total_cost += reg_cost * W_REG
+
         for p in final_panels:
-            # --- Shape Cost (Match Dataset) ---
-            # (Same logic as before: normalize and compare vertices)
             poly = np.array(p['polygon'])
             if len(poly) < 3: 
                 total_cost += 10000; continue
-                
-            # Normalize
-            min_xy = np.min(poly, axis=0)
-            max_xy = np.max(poly, axis=0)
-            w, h = max_xy - min_xy
             
-            ideals = np.array([
-                [min_xy[0], min_xy[1]], [max_xy[0], min_xy[1]],
-                [max_xy[0], max_xy[1]], [min_xy[0], max_xy[1]]
-            ])
-            
-            # Ensure we have 4 points (some cuts might create triangles/pentagons)
-            # For simplicity, we just check Area cost primarily here
-            
-            # --- Area Cost (Importance) ---
-            # Shoelace Area
+            # --- E_AREA: Importance Cost ---
+            # Shoelace Area Formula
             xs, ys = poly[:, 0], poly[:, 1]
             area = 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
             
             imp_score = next((m['importance_score'] for m in meta if m['panel_index'] == p['panel_index']), 5)
-            # Heuristic target: Importance * constant
-            target_area = imp_score * (self.w * self.h / 25) # Rough estimate
+            target_area = imp_score * (self.w * self.h / 25) 
             
-            total_cost += ((area - target_area) / target_area)**2 * 10
+            # Normalized squared error
+            area_cost = ((area - target_area) / target_area) ** 2
+            total_cost += area_cost * W_AREA
+
+            # --- E_SHAPE: Rectangularity Cost ---
+            # 1. Calculate the ideal Bounding Box for this polygon
+            min_xy = np.min(poly, axis=0)
+            max_xy = np.max(poly, axis=0)
+            bbox_area = (max_xy[0] - min_xy[0]) * (max_xy[1] - min_xy[1])
+            
+            # 2. Rectangularity Metric: (BBoxArea - PolyArea) / BBoxArea
+            # If the polygon is a perfect rectangle, Area == BBoxArea, cost is 0.
+            # If it's a triangle or skewed, Area < BBoxArea, cost increases.
+            if bbox_area > 0:
+                shape_deviation = (bbox_area - area) / bbox_area
+                total_cost += (shape_deviation ** 2) * W_SHAPE
+            
+            # 3. Aspect Ratio Penalty (prevent slivers)
+            w, h = max_xy - min_xy
+            ratio = w / h if h > 0 else 0
+            if ratio < 0.2 or ratio > 5.0:
+                total_cost += 100  # Hard penalty for unusable shapes
 
         return total_cost
+
+    # def _energy_function(self, x, tree, nodes, meta):
+    #     # 1. Reconstruct the page geometry with these angles
+    #     # This is the heavy part: "Slicing" the polygon recursively
+    #     final_panels = self._tree_to_panels(tree, x, meta)
+        
+    #     total_cost = 0
+        
+    #     # 2. Calculate Costs
+    #     for p in final_panels:
+    #         # --- Shape Cost (Match Dataset) ---
+    #         # (Same logic as before: normalize and compare vertices)
+    #         poly = np.array(p['polygon'])
+    #         if len(poly) < 3: 
+    #             total_cost += 10000; continue
+                
+    #         # Normalize
+    #         min_xy = np.min(poly, axis=0)
+    #         max_xy = np.max(poly, axis=0)
+    #         w, h = max_xy - min_xy
+            
+    #         ideals = np.array([
+    #             [min_xy[0], min_xy[1]], [max_xy[0], min_xy[1]],
+    #             [max_xy[0], max_xy[1]], [min_xy[0], max_xy[1]]
+    #         ])
+            
+    #         # Ensure we have 4 points (some cuts might create triangles/pentagons)
+    #         # For simplicity, we just check Area cost primarily here
+            
+    #         # --- Area Cost (Importance) ---
+    #         # Shoelace Area
+    #         xs, ys = poly[:, 0], poly[:, 1]
+    #         area = 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
+            
+    #         imp_score = next((m['importance_score'] for m in meta if m['panel_index'] == p['panel_index']), 5)
+    #         # Heuristic target: Importance * constant
+    #         target_area = imp_score * (self.w * self.h / 25) # Rough estimate
+            
+    #         total_cost += ((area - target_area) / target_area)**2 * 10
+
+    #     return total_cost
 
     def _collect_nodes(self, node):
         if node["type"] == "leaf": return []

@@ -48,10 +48,10 @@ class CaoInitialLayout:
         # 4. Convert the winning tree into flat coordinates
         return self._flatten_tree(best_tree, panels)
     
-    def generate_top_k(self, panels, k=3):
+    def generate_top_k(self, panels, k=3, return_trees=False): # <--- Add param
         """
         Generates 1000 layouts and returns the top K *unique* best ones.
-        Returns: List of tuples [(score, layout_panels), ...]
+        Returns: List of tuples [(score, result), ...]
         """
         if not panels: return []
         
@@ -65,16 +65,13 @@ class CaoInitialLayout:
             tree = self._random_tree(panels, root_rect, depth=0)
             cost = self._score_tree(tree, num_panels)
             
-            # Create a simple hash of the tree structure (Splits + Panel Indices)
-            # We don't care about precise float coordinates for uniqueness, just the topology
             tree_hash = self._hash_tree(tree)
-            
             candidates.append((cost, tree, tree_hash))
             
         # 2. Sort by Cost (Lowest is best)
         candidates.sort(key=lambda x: x[0])
         
-        # 3. Flatten the top K unique layouts
+        # 3. Collect top K unique layouts
         results = []
         seen_hashes = set()
         
@@ -82,12 +79,16 @@ class CaoInitialLayout:
             if len(results) >= k: break
             
             if t_hash in seen_hashes:
-                continue # Skip duplicate structure
+                continue 
             
             seen_hashes.add(t_hash)
             
-            layout_flat = self._flatten_tree(tree, panels)
-            results.append((cost, layout_flat))
+            # CHECK: Return Tree or Flat Panel?
+            if return_trees:
+                results.append((cost, tree))
+            else:
+                layout_flat = self._flatten_tree(tree, panels)
+                results.append((cost, layout_flat))
             
         return results
 
