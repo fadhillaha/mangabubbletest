@@ -11,3 +11,5 @@ output/
 output2/
 output4/
 .env
+pytest.ini
+setup.py 
