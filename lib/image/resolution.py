@@ -34,7 +34,6 @@ def get_optimal_resolution(target_w, target_h):
         diff = abs(target_ratio - res_ratio)
         
         # Tie-breaker: If ratios are very similar, prefer the one closer in pixel count
-        # (Optional, but helps avoid upscaling tiny thumbnails to 912px)
         if diff < min_diff:
             min_diff = diff
             best_res = (w, h)

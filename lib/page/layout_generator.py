@@ -147,7 +147,7 @@ class CaoInitialLayout:
             if self.direction == 'rtl':
                 # RTL FIX: 
                 # Group A (Panel 0) goes RIGHT. Group B (Panel 1) goes LEFT.
-                # We must map Group B to the "Left Child" of the tree 
+                # Map Group B to the "Left Child" of the tree 
                 # so the Optimizer puts it on the Geometric Left.
                 
                 rect_right = {'x': x + w_b, 'y': y, 'w': w_a, 'h': h} # A goes here

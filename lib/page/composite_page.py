@@ -35,7 +35,7 @@ class PageCompositor:
                 oy = pt[1] + self.my
                 offset_poly.append((ox, oy))
             
-            # Calculate Bounds of the OFFSET polygon
+            # Calculate Bounds of the offset polygon
             xs = [pt[0] for pt in offset_poly]
             ys = [pt[1] for pt in offset_poly]
             min_x, max_x = min(xs), max(xs)
@@ -44,10 +44,10 @@ class PageCompositor:
             target_w = int(max_x - min_x)
             target_h = int(max_y - min_y)
             
-            # Skip if we don't have an image for this panel
+            # Skip if there isnt an image for this panel
             if idx not in image_paths:
                 print(f"  [Warning] No image found for Panel {idx}")
-                # Optional: Draw empty placeholder box so you can see the layout
+                # Draw empty placeholder box so you can see the layout
                 draw.line(offset_poly + [offset_poly[0]], fill=(0,0,0), width=5)
                 continue
 
@@ -78,7 +78,6 @@ class PageCompositor:
             if target_w <= 0 or target_h <= 0: continue
 
             # --- B. Create the Mask ---
-            # We work in a "local" buffer size of the bounding box to save memory
             mask = Image.new("L", (target_w, target_h), 0)
             mask_draw = ImageDraw.Draw(mask)
             
@@ -87,7 +86,7 @@ class PageCompositor:
             mask_draw.polygon(local_poly, fill=255)
 
             # --- C. Aspect Fit the Image ---
-            # We need to resize the source image so it covers the mask entirely
+            # Resize the source image so it covers the mask entirely
             # avoiding any empty space (Aspect Fill / "Cover" mode)
             img_ratio = original_img.width / original_img.height
             target_ratio = target_w / target_h
@@ -110,15 +109,12 @@ class PageCompositor:
             cropped_img = resized_img.crop((crop_x, crop_y, crop_x + target_w, crop_y + target_h))
 
             # --- D. Paste onto Page ---
-            # Paste using the mask
             page.paste(cropped_img, (int(min_x), int(min_y)), mask)
             
             # --- E. Draw Borders ---
-            # Draw a thick black line around the polygon to hide jagged edges
             draw.line(poly_pts + [poly_pts[0]], fill=(0, 0, 0), width=5)
 
         # 3. Save Final Result
-        # Ensure directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         page.save(output_path)
         print(f"✅ Page saved to: {output_path}")

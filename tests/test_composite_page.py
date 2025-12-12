@@ -2,13 +2,13 @@ import os
 import json
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from lib.page.cao_initial_layout import CaoInitialLayout
-from lib.page.optimizer import LayoutOptimizer
+from lib.page.layout_generator import CaoInitialLayout
+from lib.page.layout_optimizer import LayoutOptimizer
 from lib.page.composite_page import PageCompositor
 
 # --- CONFIG ---
 MODEL_PATH = "layoutpreparation/style_models.json"
-RUN_DIR = "output/ui_run_20251205_155059/20251205_1551" # <--- UPDATE THIS
+RUN_DIR = "output/ui_run_20251205_155059/20251205_1551" 
 
 def get_best_image_for_panel(run_dir, panel_idx):
     """Parses scores.json to find the image path of the highest scoring variation."""

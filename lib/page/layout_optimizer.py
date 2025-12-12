@@ -57,7 +57,7 @@ class LayoutOptimizer:
         Output: List of panels with 'polygon' (Diagonal shapes).
         """
         # 1. Identify all "Cut Nodes" in the tree
-        # We need to optimize 2 variables for every cut: [Ratio, Angle]
+        # Optimize 2 variables for every cut: [Ratio, Angle]
         nodes = self._collect_nodes(layout_tree)
         num_cuts = len(nodes)
         
@@ -71,10 +71,10 @@ class LayoutOptimizer:
         
         for node in nodes:
             # Initial Ratio is derived from the Rect (approximate)
-            # We assume the tree stores the 'split' type ("H" or "V")
-            # We initialize Angle to 0.0 (Perfectly straight)
+            # Assume the tree stores the 'split' type ("H" or "V")
+            # Initialize Angle to 0.0 (Perfectly straight)
             
-            current_ratio = 0.5 # Default (Refining this requires parsing the rects)
+            current_ratio = 0.5 # Default
             
             # Bounds: Ratio (0.2 to 0.8), Angle (-0.15 to 0.15 radians ~ 8 degrees)
             x0.extend([current_ratio, 0.0])
@@ -142,13 +142,14 @@ class LayoutOptimizer:
     
     def _energy_function(self, x, tree, nodes, meta):
         """
-        Full Energy Formula:
+        Energy Function only using all parameters, should reduce diagonals
         E_total = (W_AREA * E_area) + (W_SHAPE * E_shape) + (W_REG * E_reg)
         """
         # --- HYPERPARAMETERS ---
-        W_AREA = 10.0    # Priority: Match the requested size
-        W_SHAPE = 5.0    # Priority: Keep panels rectangular-ish
-        W_REG = 50.0     # Priority: Keep cuts straight (angle ~ 0)
+        # Change how much each parameter affects the final result
+        W_AREA = 5.0    # Priority: Match the requested size
+        W_SHAPE = 1.0    # Priority: Keep panels rectangular-ish
+        W_REG = 1.0     # Priority: Keep cuts straight (angle ~ 0)
 
         # 1. Reconstruct Geometry
         final_panels = self._tree_to_panels(tree, x, meta)
@@ -156,11 +157,15 @@ class LayoutOptimizer:
         total_cost = 0.0
 
         # --- E_REG: Regularization Cost ---
-        # Penalize angles that deviate from 0 (Diagonal cuts are expensive)
+        # Penalize angles that have extreme angles
         # x array layout: [ratio, angle, ratio, angle, ...]
         angles = x[1::2] 
+
+        high_angles = angles[np.abs(angles) > 0.1]
+        low_angles  = angles[np.abs(angles) <= 0.1]
+
         # Sum of squares of angles
-        reg_cost = np.sum(angles ** 2)
+        reg_cost = np.sum(high_angles ** 2) + (0.1 * np.sum(low_angles ** 2))
         total_cost += reg_cost * W_REG
 
         for p in final_panels:
@@ -202,41 +207,29 @@ class LayoutOptimizer:
         return total_cost
 
     # def _energy_function(self, x, tree, nodes, meta):
+    #     """
+    #     Energy Function only using E_Area, Resulting more diagonals
+    #     """
     #     # 1. Reconstruct the page geometry with these angles
-    #     # This is the heavy part: "Slicing" the polygon recursively
     #     final_panels = self._tree_to_panels(tree, x, meta)
         
     #     total_cost = 0
         
     #     # 2. Calculate Costs
     #     for p in final_panels:
-    #         # --- Shape Cost (Match Dataset) ---
-    #         # (Same logic as before: normalize and compare vertices)
+    #         # Shape Cost (Match Dataset) 
     #         poly = np.array(p['polygon'])
     #         if len(poly) < 3: 
     #             total_cost += 10000; continue
-                
-    #         # Normalize
-    #         min_xy = np.min(poly, axis=0)
-    #         max_xy = np.max(poly, axis=0)
-    #         w, h = max_xy - min_xy
             
-    #         ideals = np.array([
-    #             [min_xy[0], min_xy[1]], [max_xy[0], min_xy[1]],
-    #             [max_xy[0], max_xy[1]], [min_xy[0], max_xy[1]]
-    #         ])
-            
-    #         # Ensure we have 4 points (some cuts might create triangles/pentagons)
-    #         # For simplicity, we just check Area cost primarily here
-            
-    #         # --- Area Cost (Importance) ---
-    #         # Shoelace Area
+    #         # Ensure 4 points (some cuts might create triangles/pentagons)
+    #         # Check also Area cost using Shoelace Area
     #         xs, ys = poly[:, 0], poly[:, 1]
     #         area = 0.5 * np.abs(np.dot(xs, np.roll(ys, 1)) - np.dot(ys, np.roll(xs, 1)))
             
     #         imp_score = next((m['importance_score'] for m in meta if m['panel_index'] == p['panel_index']), 5)
     #         # Heuristic target: Importance * constant
-    #         target_area = imp_score * (self.w * self.h / 25) # Rough estimate
+    #         target_area = imp_score * (self.w * self.h / 25) 
             
     #         total_cost += ((area - target_area) / target_area)**2 * 10
 
@@ -247,13 +240,9 @@ class LayoutOptimizer:
         return [node] + self._collect_nodes(node["left"]) + self._collect_nodes(node["right"])
 
     def _tree_to_panels(self, tree, params, meta):
-        # Start with full page polygon
+        # Full page polygon
         page_poly = [[0,0], [self.w,0], [self.w,self.h], [0,self.h]]
-        
-        # Recursive Slicer
-        # We consume 'params' as we traverse. 
-        # Ideally, map param_index to node_id.
-        # Simplified: We regenerate the list of nodes order to match params
+    
         nodes_flat = self._collect_nodes(tree)
         
         # Map node object to (ratio, angle)
@@ -280,7 +269,7 @@ class LayoutOptimizer:
         ratio, angle = param_map.get(id(node), (0.5, 0.0))
         
         # Calculate Cut Line
-        # 1. Find Bounding Box of current poly to determine split point
+        # Find Bounding Box of current poly to determine split point
         pts = np.array(poly)
         min_x, min_y = np.min(pts, axis=0)
         max_x, max_y = np.max(pts, axis=0)
@@ -297,23 +286,19 @@ class LayoutOptimizer:
             # New normal: (sin(a), cos(a))
             nx = math.sin(angle)
             ny = math.cos(angle)
-            c = -1 * (nx * center_x + ny * base_y) # Pivot around center/base intersection?
-            # Simpler: Pivot around (center_x, base_y)
-            # Point on line P0 = (center_x, base_y)
+            # Pivot around (center_x, base_y)
             # Normal N = (sin a, cos a)
             # Eq: Nx * (x - P0x) + Ny * (y - P0y) = 0
             P0 = (center_x, base_y)
             
         else: # Vertical Cut (x = constant)
             base_x = min_x + w * ratio
-            # Normal (-cos a, sin a)? 
             # Vertical normal is (1, 0). Rotated: (cos a, sin a)
             nx = math.cos(angle)
             ny = math.sin(angle)
             P0 = (base_x, center_y)
 
-        # 2. Clip Polygon against Line
-        # We need a function that returns LeftPoly and RightPoly
+        # Clip Polygon against Line
         poly_a, poly_b = self._clip_polygon(poly, (nx, ny), P0)
         
         self._slice_recursive(node["left"], poly_a, param_map, results)

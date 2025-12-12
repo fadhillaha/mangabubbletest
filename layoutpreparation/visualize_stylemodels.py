@@ -6,7 +6,7 @@ import os
 
 
 # CONFIG
-MODEL_PATH = "C:\DATA\Stuff\Parsola\Bubble\layoutpreparation\style_models.json"
+MODEL_PATH = "layoutpreparation\style_models.json"
 
 def plot_style_models():
     if not os.path.exists(MODEL_PATH):

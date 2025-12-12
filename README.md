@@ -4,11 +4,11 @@
 >
 > This project is modified fork of **NameGen** by **Kazuki Kitano** \
 > Original Author : **Kazuki Kitano** \
-> Original Repository : **https://github.com/kitano-kazuki/bubbleAlloc/tree/pipeline**\
+> Original Repository : **https://github.com/kitano-kazuki/bubbleAlloc/tree/pipeline** \
 > The **modifications** in this repository were implemented as part of an internship project at **Parsola Inc.**
 
 
-## Project Overview
+## Overview
 **NameGen** is a tool to generate a manga **"Name"** (rough storyboard) from a text script. It constructs a speech bubble database using the **Manga109**  datasets, which serves as a reference for the automatic placement of speech bubbles.
 
 The following features were added to the original repository:
@@ -82,16 +82,16 @@ python src/dataprepare.py
 The project comes with a pre-trained layout model (`layoutpreparation/style_models_manga109.json`).This step is only needed to recreate the layout model (e.g., to learn new panel arrangements).
 
 #### Requirement : 
-- [Manga109Segmentation](https://huggingface.co/datasets/MS92/MangaSegmentation/tree/main) 
+- [MangaSegmentation](https://huggingface.co/datasets/MS92/MangaSegmentation/tree/main) 
 
 #### Training Steps:
 
-Place the segmentation JSONs in `dataset/Manga109Segmentation/jsons/`.
+Place the segmentation JSONs in `dataset/MangaSegmentation/jsons/`.
 
 Run the training script:
 
 ```bash
-python layoutpreparation/train_manga109style.py dataset/Manga109Segmentation/jsons/
+python layoutpreparation/train_manga109style.py dataset/MangaSegmentation/jsons/
 ```
 
 This will generate a new `style_models.json` file based on the provided annotations.
@@ -118,14 +118,14 @@ Launch the WebUI. Ensure http://127.0.0.1:7860/docs is accessible.
 ### 4. API Configuration
 Create a .env file in the root directory for LLM API access (OpenAI or Google LLM model):
 
-```TOML
+```plaintext
 API_KEY=your__api_key_here
 ```
 
 
 ## 💻 Usage
-### Option A: Web UI 
-Use the interface dashboard.
+### Option A: Web Interface
+Use the web dashboard.
 ```bash
 streamlit run app.py
 ```
@@ -140,4 +140,5 @@ Generate directly from a text file.
 python src/pipeline.py --script_path examples/your_script.txt --output_path path/to/output_dir
 ```
 
+After running the pipeline, the results will be in the output folder.
 

@@ -7,12 +7,10 @@ from lib.layout.layout import Speaker
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-
+# Font used for speech bubble
 FONTPATH = "fonts/NotoSansCJK-Regular.ttc"
 
-# ==========================================
-# 1. CLIP MODEL & PROMPT LOGIC
-# ==========================================
+# ---   CLIP MODEL & PROMPT LOGIC   ---
 
 def load_clip_model(model_id="openai/clip-vit-base-patch32"):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -27,18 +25,11 @@ def load_clip_model(model_id="openai/clip-vit-base-patch32"):
 
 def get_verification_prompt(text_prompt):
     """
+    Appends stylistic keywords added in lib/name.py
     Args:
         text_prompt (str): The full, enhanced prompt used for generation.
     """
-    # 1. REMOVE the extraction logic (since we are passing the text directly)
-    
-    # 2. REMOVE the truncation (the 200 char limit)
-    # if len(scene_text) > 200: ... <--- DELETE THIS
-    
-    # 3. Define your style suffix (matches the 'messy' anime style)
     style_suffix = ", rough pencil sketch, manga name, storyboard style, loose lines, messy drawing, monochrome"
-    
-    # 4. Return the combined string
     return text_prompt + style_suffix
 
 def calculate_clip_score(image_path, text_prompt, model, processor, device):
@@ -46,8 +37,7 @@ def calculate_clip_score(image_path, text_prompt, model, processor, device):
     try:
         image = Image.open(image_path).convert("RGB")
         
-        # 1. Tokenize without truncation first to see full length
-        # We process text only first to handle chunking
+        # 1. Tokenize without truncation first (to handle long prompts manually)
         inputs_text = processor(text=[text_prompt], return_tensors="pt", padding=False, truncation=False)
         input_ids = inputs_text['input_ids'][0]
 
@@ -59,21 +49,16 @@ def calculate_clip_score(image_path, text_prompt, model, processor, device):
         
         # 3. Process each chunk
         with torch.no_grad():
-            # Get image embedding once (it doesn't change)
+            # Get image embedding
             image_inputs = processor(images=image, return_tensors="pt").to(device)
             image_outputs = model.get_image_features(**image_inputs)
             image_embeds = image_outputs / image_outputs.norm(p=2, dim=-1, keepdim=True)
 
             for chunk in chunks:
-                # Add start (49406) and end (49407) tokens for OpenAI CLIP
-                # Note: These IDs are specific to openai/clip models. 
-                # If using a different model, check processor.tokenizer.bos_token_id
-                
-                # Safe way using the processor's tokenizer:
+
                 bos_id = processor.tokenizer.bos_token_id
                 eos_id = processor.tokenizer.eos_token_id
                 
-                # Construct tensor: [BOS] + chunk + [EOS]
                 chunk_tensor = torch.cat([
                     torch.tensor([bos_id]), 
                     chunk, 
@@ -100,11 +85,10 @@ def calculate_clip_score(image_path, text_prompt, model, processor, device):
         print(f"[Scoring] Error calculating CLIP score: {e}")
         return 0.0
 
-# ==========================================
-# 2. GEOMETRIC PENALTY LOGIC
-# ==========================================
+# ---   GEOMETRIC PENALTY LOGIC   ---
 
 def _get_font_metrics():
+    """Returns font object and estimated char size for bubble simulation."""
     try:
         font = ImageFont.truetype(FONTPATH, 20)
         char_bbox = font.getbbox("あ")
@@ -113,7 +97,7 @@ def _get_font_metrics():
         return None, 20, 20
 
 def _simulate_dialogue_bboxes(ref_layout, dialogues):
-    """Calculates bubbles for characters (Speakers)."""
+    """Simulate bubbles placement for characters (Speakers)."""
     bubbles = []
     _, char_width, char_height = _get_font_metrics()
     vertical_margin = 2
@@ -157,14 +141,14 @@ def _simulate_dialogue_bboxes(ref_layout, dialogues):
     return bubbles
 
 def _simulate_monologue_bbox(ref_layout, monologue_text):
-    """Calculates the bubble for the Monologue (Unrelated Text)."""
+    """Simulates the bubble placement for the Monologue (Unrelated Text)."""
     if not monologue_text or not hasattr(ref_layout, 'unrelated_text_bbox') or not ref_layout.unrelated_text_bbox:
         return None
 
     _, char_width, char_height = _get_font_metrics()
     vertical_margin = 2
 
-    # Find the best slot for monologue (usually the right-most one)
+    # Find the best slot for monologue
     unrelated_bboxes = sorted([item["bbox"] for item in ref_layout.unrelated_text_bbox], key=lambda x: x[2], reverse=True)
     
     if not unrelated_bboxes:
@@ -208,19 +192,17 @@ def _visualize_penalty_debug(people_result, bubbles, save_path, penalty=0):
         width = people_result.canvas_width
         height = people_result.canvas_height
         
-        # Create figure
         fig, ax = plt.subplots(figsize=(6, 6 * height / width), dpi=100)
         ax.set_xlim(0, width)
-        ax.set_ylim(height, 0) # Inverted Y for image coords
+        ax.set_ylim(height, 0) 
         ax.set_aspect('equal')
         
         # 1. Draw People
         for person in people_result.people:
-            # A. Draw Joints (Blue Dots) - No pairs needed!
+            # A. Draw Joints (Blue Dots) 
             if person.pose_keypoints_2d:
                 for kp in person.pose_keypoints_2d:
-                    # kp is [x, y, confidence]
-                    # OpenPose returns 0,0 for undetected points
+                    # Exception if OpenPose returns 0,0 for undetected points
                     if kp[0] > 0 and kp[1] > 0:
                         ax.plot(kp[0] * width, kp[1] * height, 'o', color='blue', markersize=4, alpha=0.8)
 
@@ -250,7 +232,7 @@ def _visualize_penalty_debug(people_result, bubbles, save_path, penalty=0):
             ax.add_patch(rect)
             ax.text(b[0], b[1]-5, "Text", color='red', fontsize=8, weight='bold')
 
-        # Create unique legend
+        # Create legend
         handles, labels = ax.get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         
@@ -273,7 +255,7 @@ def _visualize_penalty_debug(people_result, bubbles, save_path, penalty=0):
 
 def calculate_geometric_penalty(ref_layout, panel_data, people_result, bbox_save_path=None):
     """
-    Calculates penalty for BOTH Dialogues and Monologues overlapping faces/bodies.
+    Calculates penalty for both Dialogues and Monologues overlapping faces/bodies.
     Args:
         ref_layout: The MangaLayout template.
         panel_data: The list of dictionaries (the raw panel content).
@@ -343,11 +325,9 @@ def run_panel_scoring(base_dir, prompts):
         panel_dir = os.path.join(image_base_dir, f"panel{i:03d}")
         score_file = os.path.join(panel_dir, "scores.json")
         
-        # Skip if generation failed for this panel
         if not os.path.exists(score_file):
             continue
 
-        # Load the data
         try:
             with open(score_file, "r", encoding="utf-8") as f:
                 panel_entry = json.load(f)
@@ -379,7 +359,7 @@ def run_panel_scoring(base_dir, prompts):
                 sim = layout_opt["sim_score"]
                 geom = layout_opt["geom_penalty"]
                 
-                # THE FORMULA: Layout Similarity + CLIP - Geometric Penalty
+                # Layout Similarity + CLIP - Geometric Penalty
                 final_score = (sim * 10) + (c_score * 50) - (geom)
                 layout_opt["final_score"] = final_score
                 
@@ -393,4 +373,4 @@ def run_panel_scoring(base_dir, prompts):
         with open(score_file, "w", encoding="utf-8") as f:
             json.dump(panel_entry, f, indent=4, default=str)
             
-        print(f"  🏆 Winner: {winner_name} (Score: {best_score:.2f})")
+        print(f"Winner: {winner_name} (Score: {best_score:.2f})")

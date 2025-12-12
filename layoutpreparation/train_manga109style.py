@@ -3,18 +3,18 @@ import os
 import glob
 import sys
 import numpy as np
-import cv2  # pip install opencv-python
-from pycocotools import mask as maskUtils # pip install pycocotools
+import cv2  
+from pycocotools import mask as maskUtils 
 from tqdm import tqdm
 
 class Manga109Trainer:
     def __init__(self):
-        # 1. Structure Model (H vs V splits)
+        # 1. Structure Model: Probability of splits (Horizontal vs Vertical) at each tree depth
         self.structure_counts = {}
-        # 2. Importance Model (Area %)
+        # 2. Importance Model: Average area (%) of panels based on their size rank (0=largest)
         self.importance_data = {} 
-        # 3. Shape Model (Vertex Deltas)
-        self.vertex_deltas = [] 
+        # 3. Shape Model: Variance of panel corners from a perfect rectangle (TL, TR, BR, BL)
+        self.vertex_deltas = []
 
     def train_from_folder(self, folder_path):
         """
@@ -24,16 +24,16 @@ class Manga109Trainer:
         json_files = glob.glob(search_path)
 
         if not json_files:
-            print(f"❌ No JSON files found in {folder_path}")
+            print(f"No JSON files found in {folder_path}")
             return
 
-        print(f"📚 Found {len(json_files)} books. Starting training...")
+        print(f"Found {len(json_files)} books. Starting training...")
 
         for fpath in tqdm(json_files, desc="Processing Books"):
             try:
                 self._process_book(fpath)
             except Exception as e:
-                print(f"⚠️ Skipping {os.path.basename(fpath)}: {e}")
+                print(f"Skipping {os.path.basename(fpath)}: {e}")
 
         # Save Final Models
         output_path = os.path.join(os.path.dirname(__file__), "style_models.json")
@@ -88,25 +88,24 @@ class Manga109Trainer:
         right_page = []
 
         for p in raw_panels:
-            # Get BBox center
+            # Get Bounding Box (BBox) center
             bx, by, bw, bh = p['bbox']
             cx = bx + bw / 2
             
-            # Check for spine crossing (Skip if it spans across the middle significantly)
+            # Skip panels that cross the spine significantly (>20% overlap on both sides)
             if bx < spine_x and (bx + bw) > spine_x:
-                # Heuristic: If > 80% is on one side, keep it. Else discard.
                 overlap_left = max(0, spine_x - bx)
                 overlap_right = max(0, (bx + bw) - spine_x)
                 if min(overlap_left, overlap_right) > bw * 0.2:
-                    continue # Discard spine-crossers (bad training data)
+                    continue
 
-            # Extract Polygon (0..1 normalized to FULL PAGE first)
+            # Extract Polygon
             poly_norm = self._rle_to_norm_poly(p, page_w, page_h)
             if poly_norm is None: continue
 
             # Assign to Side
             if cx > spine_x:
-                # RIGHT PAGE (Page A)
+                # RIGHT PAGE 
                 # Remap X: (x - 0.5) * 2
                 new_poly = np.copy(poly_norm)
                 new_poly[:, 0] = (new_poly[:, 0] - 0.5) * 2
@@ -114,7 +113,7 @@ class Manga109Trainer:
                 if np.all((new_poly[:,0] >= 0) & (new_poly[:,0] <= 1)):
                     right_page.append({'poly': new_poly})
             else:
-                # LEFT PAGE (Page B)
+                # LEFT PAGE 
                 # Remap X: x * 2
                 new_poly = np.copy(poly_norm)
                 new_poly[:, 0] = new_poly[:, 0] * 2
@@ -133,7 +132,7 @@ class Manga109Trainer:
         return processed
 
     def _rle_to_norm_poly(self, ann, w, h):
-        """Decodes RLE -> Binary Mask -> Contours -> 4-Point Polygon."""
+        """Decodes Run Length Encoding (RLE) -> Binary Mask -> Contours -> 4-Point Polygon."""
         if 'segmentation' not in ann: return None
         try:
             # 1. Decode RLE
@@ -141,7 +140,6 @@ class Manga109Trainer:
             mask = maskUtils.decode(rle) # Returns HxW binary array
             
             # 2. Find Contours (OpenCV)
-            # Need uint8 type
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if not contours: return None
             
@@ -152,9 +150,6 @@ class Manga109Trainer:
             epsilon = 0.02 * cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, epsilon, True)
             
-            # If not 4 corners, force bounding box or skip?
-            # We want diagonals, so we try to use the approx if it's 4 points.
-            # If not, we fallback to rotated rectangle or bbox.
             final_pts = []
             
             if len(approx) == 4:
@@ -184,7 +179,7 @@ class Manga109Trainer:
         for p in panels:
             poly = p['poly']
             
-            # AABB Area
+            # Axis-Aligned Bounding Box Area
             min_x, min_y = np.min(poly, axis=0)
             max_x, max_y = np.max(poly, axis=0)
             pw, ph = max_x - min_x, max_y - min_y
@@ -217,7 +212,7 @@ class Manga109Trainer:
         max_x = min_x + w
         max_y = min_y + h
 
-        # Sort corners TL, TR, BR, BL
+        # Sort each corners Top Left (TL), Top Right (TR), Bottom Right (BR), Bottom Left (BL)
         center = np.mean(poly, axis=0)
         angles = np.arctan2(poly[:,1] - center[1], poly[:,0] - center[0])
         sorted_indices = np.argsort(angles)
@@ -229,7 +224,6 @@ class Manga109Trainer:
             [min_x, min_y], [max_x, min_y], # TL, TR
             [max_x, max_y], [min_x, max_y]  # BR, BL
         ])
-        # Note: Need correct max_x/y from caller scope or re-calc
         max_x, max_y = min_x + w, min_y + h
         ideals = np.array([
             [min_x, min_y], [max_x, min_y], 
@@ -247,9 +241,6 @@ class Manga109Trainer:
             deltas.extend([dx, dy])
             
         self.vertex_deltas.append(deltas)
-
-    # ... (Reuse _recover_tree and _save_models from previous script exactly) ...
-    # I will paste them here for completeness
     
     def _recover_tree(self, panels, depth):
         if len(panels) <= 1: return
@@ -310,7 +301,7 @@ class Manga109Trainer:
                 "importance": final_imp,
                 "shape": final_shape
             }, f, indent=4)
-        print(f"✅ Success! Models saved to: {filename}")
+        print(f"Success! Models saved to: {filename}")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:

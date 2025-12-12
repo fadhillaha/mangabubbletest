@@ -2,8 +2,8 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import os
-from lib.page.cao_initial_layout import CaoInitialLayout
-from lib.page.optimizer import LayoutOptimizer
+from lib.page.layout_generator import CaoInitialLayout
+from lib.page.layout_optimizer import LayoutOptimizer
 
 # 1. Setup paths
 MODEL_PATH = "layoutpreparation/style_models.json" 
