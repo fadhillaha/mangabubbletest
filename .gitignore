@@ -13,3 +13,4 @@ output4/
 .env
 pytest.ini
 setup.py 
+.gitignore
