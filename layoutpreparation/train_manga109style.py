@@ -36,7 +36,7 @@ class Manga109Trainer:
                 print(f"⚠️ Skipping {os.path.basename(fpath)}: {e}")
 
         # Save Final Models
-        output_path = os.path.join(os.path.dirname(__file__), "style_models_manga109.json")
+        output_path = os.path.join(os.path.dirname(__file__), "style_models.json")
         self._save_models(output_path)
 
     def _process_book(self, json_path):

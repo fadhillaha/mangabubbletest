@@ -1,22 +1,65 @@
 # NameGen
 
-## 吹き出しDBの構築
+> ### **Attribution**
+>
+> This project is modified fork of **NameGen** by **Kazuki Kitano** \
+> Original Author : **Kazuki Kitano** \
+> Original Repository : **https://github.com/kitano-kazuki/bubbleAlloc/tree/pipeline**\
+> The **modifications** in this repository were implemented as part of an internship project at **Parsola Inc.**
 
-### データのダウンロード
 
-NameGenはManga109とManga109Dialogを用いて吹き出し配置の参照とする吹き出しDBを構築する.
-これらを事前にダウンロードしておく.
+## Project Overview
+**NameGen** is a tool to generate a manga **"Name"** (rough storyboard) from a text script. It constructs a speech bubble database using the **Manga109**  datasets, which serves as a reference for the automatic placement of speech bubbles.
 
-#### URLs
-* [Manga109](http://www.manga109.org/ja/download.html)
-    * Manga109のダウンロードは事前にフォームを送り許諾を受ける必要がある
-* [Manga109Dialog](https://github.com/manga109/public-annotations)
+The following features were added to the original repository:
 
-### 手順
+1.  **Web Interface :**
+    * Added a Streamlit user interface to put input script, generate, and view resulting generated manga pages without using command-line.
 
-ダウンロードしたデータセットを以下のように`dataset`ディレクトリに配置する.
+2.  **Expanded LLM Support :**
+    * Integrated Google Gemini model as an alternative to the original OpenAI dependency.
+    * This allows users to choose between models for script analysis and panel breakdown.
 
+3.  **Automatic Scoring System :**
+    * Added evaluation metric to select the best panel variations.
+    * **CLIP Score :** Measures how well the generated image matches the script prompt using CLIP model.
+    * **Geometric Penalty :** Detects and penalizes speech bubbles that overlap with character's faces or bodies.
+
+4.  **Layout Generation & Page Compositing :**
+    * **Algorithmic Layout :** Implemented the "Automatic Stylistic Manga Layout" technique ([Cao et al., 2012](https://www.ying-cao.com/projects/stylistic_layout/manga_layout.htm)) to generate dynamic panel structures based on the Manga109 dataset.
+    * **Page Compositor :** Added compositor that arrange panels and layouts into pages, handling panel resizing, aspect ratio fitting, and border drawing.
+
+## 🛠️ Installation
+
+### 1. Prerequisites
+Clone the repository and install the dependencies.
+
+```bash
+# Clone this repository
+git clone https://github.com/fadhillaha/mangabubbletest.git
+cd mangabubbletest
+
+# 1. Install Project Dependencies
+pip install -r requirements.txt
+
+# 2. Install the package in editable mode
+pip install -e .
 ```
+
+### 2. Manga Database Construction
+NameGen requires a dataset from the Manga109 and its additional annotation, Manga109Dialog to construct database of manga speech bubble.
+
+#### Required Data:
+
+- [Manga109](http://www.manga109.org/en/download.html)
+- [Manga109Dialog](https://github.com/manga109/public-annotations)
+
+
+#### Setup Steps:
+
+Download the datasets and place them in the `dataset` folder as shown below:
+
+```plaintext
 - dataset/
   |- Manga109/
      |- annotations/
@@ -27,73 +70,74 @@ NameGenはManga109とManga109Dialogを用いて吹き出し配置の参照とす
      |- AisazuNihairarenai.xml
      |- ...
 ```
-
-その後, `util/curate_dataset.py`を実行すると, `curated_dataset`に吹き出しDBに必要な情報が保存される. 
-
-```
+Run the curation script to extract bubble data:
+```bash
 python util/curate_dataset.py
 ```
-
-ただし, この状態では各作品のアノテーションファイルと画像しか存在しない. 全作品をまとめた一つのアノテーションファイルを以下のコマンドで作成する. 
-
-```
+Combine the annotations into a single database file.
+```bash
 python src/dataprepare.py
 ```
+### (Optional) Panel Layout Training
+The project comes with a pre-trained layout model (`layoutpreparation/style_models_manga109.json`).This step is only needed to recreate the layout model (e.g., to learn new panel arrangements).
 
-結果は`./curated_datset/database.json`として保存される.
+#### Requirement : 
+- [Manga109Segmentation](https://huggingface.co/datasets/MS92/MangaSegmentation/tree/main) 
 
-## StableDiffusionの準備
+#### Training Steps:
 
-NameGenでは画像生成モデルとしてStable Diffusionを使用する. まず, このリポジトリとは別のディレクトリに[stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)を保存し, 起動できるようにする. stable-diffusion-webuiの環境構築は, 公式githubリポジトリのREADMEを参照して欲しい.
+Place the segmentation JSONs in `dataset/Manga109Segmentation/jsons/`.
 
-stable-diffusion-webuiの`webui-user.sh`に以下を追記する.
+Run the training script:
 
+```bash
+python layoutpreparation/train_manga109style.py dataset/Manga109Segmentation/jsons/
 ```
+
+This will generate a new `style_models.json` file based on the provided annotations.
+
+### 3. Stable Diffusion Setup
+This project uses Stable Diffusion WebUI for image generation via API.
+
+Install [Stable Diffusion WebUI](https://github.com/AUTOMATIC1111/stable-diffusion-webui) in a separate directory.
+
+Edit the webui-user.sh (Linux/Mac) or webui-user.bat (Windows) file to enable the API:
+
+```bash
 export COMMANDLINE_ARGS="--api --xformers"
 ```
+Models:
 
-これにより, NameGen側からAPIとしてStable Diffusionを呼び出せるようになる. stable-diffusion-webuiを起動したのち, URLの後ろに`/docs`をつけてAPIのドキュメントが開くならば正しく起動できている.
+Model: [T-anime-v4](https://civitai.com/models/69552/t-anime-v4-pruned) (Place in models/Stable-diffusion)
 
-アニメ風の画像生成では, [T-anime-v4](https://civitai.com/models/69552/t-anime-v4-pruned)と[sketch anime pose](https://civitai.com/models/106609/sketch-anime-pose)のLoRAを用いた.
-これらをダウンロードし, stable-diffusion-webuiの`models/Stable-diffusion`と`models/Lora`にそれぞれ保存する.
+LoRA: [Pose Sketches](https://civitai.com/models/1314152?modelVersionId=1483420) (Place in models/Lora)
 
-
-## ネームの生成
-
-事前に漫画原稿を`.txt`ファイルに保存しておく. stable-diffusion-webuiを起動しておく.
-
-以下のコマンドを実行する.
-
-```
-python src/pipeline.py --script_path path/to/script.txt --output_path path/to/output_dir
-```
-
-実行コマンドの例は`scripts/run_pipeline.sh`に保存した.
+Launch the WebUI. Ensure http://127.0.0.1:7860/docs is accessible.
 
 
-### 追記
+### 4. API Configuration
+Create a .env file in the root directory for LLM API access (OpenAI or Google LLM model):
 
-#### Setup.pyの追加
-
-setup.pyを追加し以下を記入
-```
-from setuptools import setup, find_packages
-
-setup(
-    name='bubblealloc',
-    version='0.1',
-    packages=find_packages(),
-    install_requires=[],
-    author='Kazuki Kitano',
-    description='Project aiming for auto allocation of speech bubbles',
-)
-```
-
-#### torchのダウンロード
-
-```
-pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu126
+```TOML
+API_KEY=your__api_key_here
 ```
 
 
-なお, 実行時に`--resume_latest`を指定すると, 最新のディレクトリの途中から実行を開始できる. 画像生成は終わっているが, 吹き出しの配置ができていないなどで有効.
+## 💻 Usage
+### Option A: Web UI 
+Use the interface dashboard.
+```bash
+streamlit run app.py
+```
+Open http://localhost:8501 in your browser.
+
+Enter your script text and click Generate Panels.
+
+### Option B: Command Line 
+Generate directly from a text file.
+
+```bash
+python src/pipeline.py --script_path examples/your_script.txt --output_path path/to/output_dir
+```
+
+

@@ -1,40 +1,24 @@
 import argparse
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from datetime import datetime
 import json
 import os
-import time
 from PIL import Image
+from dotenv import load_dotenv
 #from openai import OpenAI
 from lib.llm.geminiadapter import GeminiClient
-from dotenv import load_dotenv
 from lib.layout.layout import generate_layout, similar_layouts
 from lib.script.divide import divide_script, ele2panels, refine_elements
-from lib.image.image import (
-    generate_image,
-    generate_image_prompts,
-    enhance_prompts,
-    generate_image_with_sd,
-)
-from lib.image.controlnet import (
-    detect_human,
-    check_open,
-    controlnet2bboxes,
-    run_controlnet_openpose,
-)
-from lib.name.name import generate_name, generate_animepose_image
-
-from lib.scoring.scorer import (
-    calculate_geometric_penalty,
-    run_panel_scoring
-)
 from lib.script.analyze import analyze_storyboard
-
-from lib.page.cao_initial_layout import CaoInitialLayout
-from lib.page.optimizer import LayoutOptimizer
-from lib.page.composite_page import PageCompositor
+from lib.image.image import generate_image_prompts, enhance_prompts, generate_image_with_sd
+from lib.image.controlnet import check_open, controlnet2bboxes, run_controlnet_openpose
 from lib.image.resolution import get_optimal_resolution
+from lib.name.name import generate_name, generate_animepose_image
+from lib.scoring.scorer import calculate_geometric_penalty, run_panel_scoring
+from lib.page.layout_generator import CaoInitialLayout
+from lib.page.layout_optimizer import LayoutOptimizer
+from lib.page.composite_page import PageCompositor
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pipeline script for processing")
@@ -60,12 +44,10 @@ def get_best_image_path(panel_dir):
         highest_score = -float('inf')
         
         for var in data.get("variations", []):
-            # We want the image with the bubbles ("generated_image_path"), not the raw one
             for opt in var.get("layout_options", []):
                 score = opt.get("final_score", -9999)
                 if score > highest_score:
                     highest_score = score
-                    # Usually: ".../02_name_0.png"
                     best_path = opt.get('generated_image_path')[:-4] + "_onlyname.png"
                     
         return best_path
@@ -77,24 +59,10 @@ def main():
     args = parse_args()
     NUM_REFERENCES = args.num_names
     resume_latest = args.resume_latest
-    # --- CONFIGURATION: MANGA PAGE ---
-    # Standard B5 at roughly 150 DPI (Good for screen/web)
-    PAGE_WIDTH = 1039 
-    PAGE_HEIGHT = 1476
-    
-    # Margin (White space edge): 80px
-    MARGIN = 80
-    
-    # Gutter (Space between panels): 15px (Increased from 10)
-    GUTTER = 15 
-    
-    # CALCULATE LIVE AREA (Where panels go)
-    LIVE_WIDTH = PAGE_WIDTH - (MARGIN * 2)
-    LIVE_HEIGHT = PAGE_HEIGHT - (MARGIN * 2)
     load_dotenv()
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("API_KEY") 
     if not api_key:
-        raise ValueError("GOOGLE_API_KEY or OPENAI_API_KEY is not set")
+        raise ValueError("API_KEY is not set")
     if not check_open():
         raise ValueError("ControlNet is not running")
     if resume_latest:
@@ -114,8 +82,21 @@ def main():
         if not os.path.exists(image_base_dir):
             os.makedirs(image_base_dir)
 
+    # --- CONFIGURATION FOR PAGE COMPOSITION ---
+    # PAGE SIZE
+    PAGE_WIDTH = 1039 
+    PAGE_HEIGHT = 1476
+    # Margin (White space edge): 80px
+    MARGIN = 80
+    # Gutter (Space between panels): 15px 
+    GUTTER = 15 
+    # CALCULATE LIVE PAGE AREA 
+    LIVE_WIDTH = PAGE_WIDTH - (MARGIN * 2)
+    LIVE_HEIGHT = PAGE_HEIGHT - (MARGIN * 2)
+
     #client = OpenAI()
     client = GeminiClient(api_key=api_key, model="gemini-2.5-flash")
+
     print("Dividing script...")
     elements = divide_script(client, args.script_path, base_dir)
     print("Refining elements...")
@@ -139,7 +120,7 @@ def main():
     topo_engine = CaoInitialLayout(style_path, page_width=LIVE_WIDTH, page_height=LIVE_HEIGHT, direction='rtl')
     opt_engine = LayoutOptimizer(style_path, page_width=LIVE_WIDTH, page_height=LIVE_HEIGHT, gutter=GUTTER)
     pages = {}
-    for p in storyboard_data: # stored from analyze_storyboard
+    for p in storyboard_data: 
         p_idx = p.get('page_index', 1)
         if p_idx not in pages: pages[p_idx] = []
         pages[p_idx].append(p)
@@ -149,7 +130,7 @@ def main():
     all_page_layouts = {}
     
     for page_num, page_panels in pages.items():
-        # Run Cao Engine
+        # Run Layout Generator
         tree = topo_engine.generate_layout(page_panels, return_tree=True)
         final_layout = opt_engine.optimize(tree, page_panels)
         all_page_layouts[page_num] = final_layout
@@ -164,10 +145,6 @@ def main():
             # Get Safe SD Resolution
             safe_w, safe_h = get_optimal_resolution(w_raw, h_raw)
             panel_resolutions[p['panel_index']] = (safe_w, safe_h)
-            # --- DEBUG PRINT ---
-            raw_aspect = w_raw / h_raw if h_raw > 0 else 0
-            safe_aspect = safe_w / safe_h
-            print(f"  [Panel {p['panel_index']}] Layout: {int(w_raw)}x{int(h_raw)} (AR: {raw_aspect:.2f}) -> SD: {safe_w}x{safe_h} (AR: {safe_aspect:.2f})")
 
     num_images = args.num_images
     for i, prompt in tqdm(enumerate(prompts), desc="Generating names"):
@@ -180,7 +157,7 @@ def main():
         panel_entry = {
             "panel_index": i,
             "panel_dir": panel_dir,
-            "prompt": prompt, # Needed for CLIP later
+            "prompt": prompt, 
             "width":sd_w,
             "height":sd_h,
             "variations": []
@@ -225,7 +202,7 @@ def main():
                 save_path = os.path.join(
                     panel_dir, f"{j:02d}_name_{idx_ref_layout:1d}.png"
                 )
-                ref_layout = scored_layout[0] # The template object
+                ref_layout = scored_layout[0] 
                 sim_score = scored_layout[1]
                 geom_penalty = calculate_geometric_penalty(
                         ref_layout, 
@@ -244,30 +221,27 @@ def main():
                 layout_options.append({
                         "rank": idx_ref_layout,
                         "template_path": ref_layout.image_path,
-                        "generated_image_path": save_path, # Saved for reference
+                        "generated_image_path": save_path, 
                         "sim_score": sim_score,
                         "geom_penalty": geom_penalty,
                     })
                 
             panel_entry["variations"].append({
                     "variation_id": j,
-                    "image_path": image_path,        # Raw image (for CLIP scoring)
+                    "image_path": image_path,        
                     "anime_image_path": anime_image_path,
-                    "layout_options": layout_options # Contains the Geom Scores & Output Paths
+                    "layout_options": layout_options 
                 })
             score_file_path = os.path.join(panel_dir, "scores.json")
             with open(score_file_path, "w", encoding="utf-8") as f:
                 json.dump(panel_entry, f, indent=4, default=str)
 
-    # ==========================================
-    # SCORING PART
-    # ==========================================
+    
+    # ---   SCORING PART --- 
     run_panel_scoring(base_dir, prompts)
 
-    # ==========================================
-    # PAGE ASSEMBLY & PDF GENERATION
-    # ==========================================
-    print("\n=== Assembling Final Pages ===")
+    # ---   PAGE ASSEMBLY & PDF GENERATION  ---
+    print("Assembling Final Pages...")
     
     # Setup Output Folder
     final_chapter_dir = os.path.join(base_dir, "final_chapter")
@@ -285,14 +259,13 @@ def main():
     for page_num, page_panels in sorted(pages.items()):
         print(f"  > Assembling Page {page_num}...")
         
-        # REUSE THE SAVED LAYOUT (Do not re-generate!)
         if page_num in all_page_layouts:
             final_layout = all_page_layouts[page_num]
         else:
             print(f"    ! Error: Missing layout for Page {page_num}")
             continue
         
-        # B. Collect Winning Images
+        # Pick Winning Images
         page_image_map = {}
         for p in final_layout:
             idx = p['panel_index']
@@ -307,12 +280,12 @@ def main():
                 page_image_map[idx] = os.path.join(panel_dir,"00_anime.png")
                 print(f"    ! Warning: No valid image found for Panel {idx}")
 
-        # C. Composite Page
+        # Composite Page
         output_filename = f"page_{page_num:02d}.png"
         output_path = os.path.join(final_chapter_dir, output_filename)
         compositor.create_page(final_layout, page_image_map, output_path)
         
-        # D. Add to PDF List
+        # Add to PDF List
         if os.path.exists(output_path):
             try:
                 # Open and convert to RGB (drop alpha) for PDF compatibility
@@ -321,7 +294,7 @@ def main():
             except Exception as e:
                 print(f"    ! Error loading page for PDF: {e}")
 
-    # 6. Save PDF
+    # Save PDF
     if pdf_pages:
         pdf_path = os.path.join(final_chapter_dir, "manga_chapter.pdf")
         print(f"\n📚 Saving Full Chapter PDF: {pdf_path}")
@@ -330,9 +303,9 @@ def main():
             save_all=True, 
             append_images=pdf_pages[1:]
         )
-        print("✅ Pipeline Finished Successfully!")
+        print("Pipeline Finished Successfully!")
     else:
-        print("⚠️ No pages were generated.")
+        print("No pages were generated.")
 
 if __name__ == "__main__":
     main()
